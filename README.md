@@ -70,10 +70,9 @@ A comprehensive **Streamlit application** for modeling and simulating a traditio
 ```bash
 git clone <repository-url>
 cd stochastic-game-simulation
+```
 
-# 📘 Stochastic Game Simulation — README
-
-## 📦 Install Dependencies
+## 📦 Install Dependencies **
     pip install -r requirements.txt
 
 ### Dependencies
