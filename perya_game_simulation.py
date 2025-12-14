@@ -168,6 +168,13 @@ st.markdown("""
         border: 2px solid rgba(0,0,0,0.1);
     }
     
+    /* Color display fix */
+    .color-option {
+        display: flex;
+        align-items: center;
+        padding: 5px 0;
+    }
+    
     /* Footer */
     .footer {
         text-align: center;
@@ -180,110 +187,167 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Game logic functions (UNCHANGED - keeping original functionality)
-class ColorGame:
-    def __init__(self, game_type="Fair Game", house_edge=5.0):
+# Enhanced Game logic functions
+class EnhancedColorGame:
+    def __init__(self, game_type="Fair Game", tweak_method="Weighted Probabilities", 
+                 house_edge=5.0, payout_reduction=0.0):
         self.colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
         self.game_type = game_type
+        self.tweak_method = tweak_method
         self.house_edge = house_edge / 100
+        self.payout_reduction = payout_reduction / 100
         
         if game_type == "Fair Game":
             self.setup_fair_game()
         else:
-            self.setup_tweaked_game()
+            if tweak_method == "Weighted Probabilities":
+                self.setup_weighted_probabilities()
+            elif tweak_method == "Modified Payouts":
+                self.setup_modified_payouts()
+            elif tweak_method == "Normal Distribution":
+                self.setup_normal_distribution()
+            elif tweak_method == "Both":
+                self.setup_both_tweaks()
+            else:
+                self.setup_fair_game()
     
     def setup_fair_game(self):
+        """Setup fair game with equal probabilities"""
         self.probabilities = [1/6] * 6
         self.payout_multiplier = 5.0
+        self.tweak_description = "Fair Game: Equal probabilities for all colors (16.67% each)"
     
-    def setup_tweaked_game(self):
+    def setup_weighted_probabilities(self):
+        """Setup game with weighted probabilities"""
         base_prob = 1/6
-        reduction = self.house_edge / 6
+        reduction = self.house_edge / 12  # Split edge between player and house colors
         
+        # Player colors (first 3) have lower probability
+        # House colors (last 3) have higher probability
         self.probabilities = []
         for i in range(6):
-            if i < 3:
+            if i < 3:  # Player colors
                 prob = base_prob - reduction
-            else:
+            else:  # House colors
                 prob = base_prob + reduction
-            self.probabilities.append(prob)
+            self.probabilities.append(max(0.01, prob))  # Ensure minimum probability
         
         total = sum(self.probabilities)
         self.probabilities = [p/total for p in self.probabilities]
-        self.payout_multiplier = 4.8
+        self.payout_multiplier = 5.0  # Fair payout
+        self.tweak_description = f"Weighted Probabilities: Player colors have {self.house_edge*100:.1f}% lower probability"
+    
+    def setup_modified_payouts(self):
+        """Setup game with modified payouts"""
+        self.probabilities = [1/6] * 6  # Fair probabilities
+        # Reduce payout to create house edge
+        reduction_factor = 1 - self.house_edge
+        self.payout_multiplier = 5.0 * reduction_factor
+        self.tweak_description = f"Modified Payouts: Payout reduced from 5.0 to {self.payout_multiplier:.2f} ({self.house_edge*100:.1f}% edge)"
+    
+    def setup_normal_distribution(self):
+        """Setup game with normal distribution payouts"""
+        self.probabilities = [1/6] * 6  # Fair probabilities
+        
+        # Create normal distribution for payouts with negative mean
+        # Mean payout will be slightly negative to create house edge
+        self.use_normal_distribution = True
+        self.payout_mean = -self.house_edge * 10  # Negative mean for house edge
+        self.payout_std = 15.0  # Standard deviation for variance
+        
+        # Base multiplier for display purposes
+        self.payout_multiplier = 5.0
+        self.tweak_description = f"Normal Distribution: Payouts ~N(μ={self.payout_mean:.2f}, σ={self.payout_std:.1f}) with {self.house_edge*100:.1f}% house edge"
+    
+    def setup_both_tweaks(self):
+        """Setup game with both probability and payout tweaks"""
+        # Apply probability tweak
+        base_prob = 1/6
+        prob_reduction = self.house_edge / 24  # Half the edge for probabilities
+        
+        self.probabilities = []
+        for i in range(6):
+            if i < 3:  # Player colors
+                prob = base_prob - prob_reduction
+            else:  # House colors
+                prob = base_prob + prob_reduction
+            self.probabilities.append(max(0.01, prob))
+        
+        total = sum(self.probabilities)
+        self.probabilities = [p/total for p in self.probabilities]
+        
+        # Apply payout tweak (half the edge)
+        payout_reduction = self.house_edge / 2
+        reduction_factor = 1 - payout_reduction
+        self.payout_multiplier = 5.0 * reduction_factor
+        
+        self.tweak_description = f"Both Tweaks: Probabilities weighted + Payout reduced to {self.payout_multiplier:.2f} (Total {self.house_edge*100:.1f}% edge)"
+        self.use_normal_distribution = False
     
     def play_round(self, player_color, bet_amount):
+        """Play one round of the game"""
         winning_color = np.random.choice(self.colors, p=self.probabilities)
         
         if player_color == winning_color:
-            win_amount = bet_amount * self.payout_multiplier
+            if hasattr(self, 'use_normal_distribution') and self.use_normal_distribution:
+                # Use normal distribution for payout
+                win_amount = max(0, np.random.normal(
+                    bet_amount * self.payout_mean + bet_amount * self.payout_multiplier,
+                    bet_amount * self.payout_std
+                ))
+            else:
+                win_amount = bet_amount * self.payout_multiplier
             return True, win_amount, winning_color
         else:
             return False, -bet_amount, winning_color
-
-def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_balance, player_color):
-    if game_type == "Compare Both":
-        results = {}
-        for gtype in ["Fair Game", "Tweaked Game"]:
-            game = ColorGame(gtype)
-            balance = initial_balance
-            history = []
-            wins = 0
-            win_history = []
-            winning_colors = []
-            
-            for i in range(num_simulations):
-                if balance < bet_amount:
-                    history.append(balance)
-                    win_history.append(False)
-                    winning_colors.append(None)
-                    continue
-                    
-                won, amount, winning_color = game.play_round(player_color, bet_amount)
-                balance += amount
-                history.append(balance)
-                win_history.append(won)
-                winning_colors.append(winning_color)
-                
-                if won:
-                    wins += 1
-            
-            results[gtype] = {
-                'history': history,
-                'final_balance': balance,
-                'wins': wins,
-                'total_games': num_simulations,
-                'win_rate': wins / num_simulations,
-                'total_profit': balance - initial_balance,
-                'expected_value': (wins * bet_amount * game.payout_multiplier - 
-                                 (num_simulations - wins) * bet_amount) / num_simulations,
-                'win_history': win_history,
-                'winning_colors': winning_colors,
-                'probabilities': game.probabilities,
-                'payout_multiplier': game.payout_multiplier
-            }
-        return results
     
-    else:
-        game = ColorGame(game_type)
-        balance = initial_balance
+    def calculate_theoretical_ev(self, bet_amount):
+        """Calculate theoretical expected value"""
+        if self.game_type == "Fair Game":
+            return (1/6) * bet_amount * 5.0 - (5/6) * bet_amount
+        
+        player_colors_idx = [i for i, color in enumerate(self.colors) if color in ["Red", "Green", "Blue"]]
+        win_prob = sum([self.probabilities[i] for i in player_colors_idx])
+        
+        if hasattr(self, 'use_normal_distribution') and self.use_normal_distribution:
+            # For normal distribution, approximate EV
+            return win_prob * (bet_amount * self.payout_mean + bet_amount * self.payout_multiplier) - (1 - win_prob) * bet_amount
+        else:
+            return win_prob * bet_amount * self.payout_multiplier - (1 - win_prob) * bet_amount
+    
+    def calculate_house_edge(self, bet_amount):
+        """Calculate theoretical house edge"""
+        fair_ev = (1/6) * bet_amount * 5.0 - (5/6) * bet_amount
+        current_ev = self.calculate_theoretical_ev(bet_amount)
+        return (fair_ev - current_ev) / bet_amount * 100
+
+def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_balance, 
+                              player_color, tweak_method="Weighted Probabilities", 
+                              house_edge=5.0):
+    """Run Monte Carlo simulation for the game"""
+    
+    def simulate_game(game_obj, num_sims, bet_amt, init_bal, player_col):
+        balance = init_bal
         history = []
         wins = 0
         win_history = []
         winning_colors = []
+        all_payouts = []
         
-        for i in range(num_simulations):
-            if balance < bet_amount:
+        for i in range(num_sims):
+            if balance < bet_amt:
                 history.append(balance)
                 win_history.append(False)
                 winning_colors.append(None)
+                all_payouts.append(0)
                 continue
                 
-            won, amount, winning_color = game.play_round(player_color, bet_amount)
+            won, amount, winning_color = game_obj.play_round(player_col, bet_amt)
             balance += amount
             history.append(balance)
             win_history.append(won)
             winning_colors.append(winning_color)
+            all_payouts.append(amount if won else -bet_amt)
             
             if won:
                 wins += 1
@@ -292,32 +356,116 @@ def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_b
             'history': history,
             'final_balance': balance,
             'wins': wins,
-            'total_games': num_simulations,
-            'win_rate': wins / num_simulations,
-            'total_profit': balance - initial_balance,
-            'expected_value': (wins * bet_amount * game.payout_multiplier - 
-                             (num_simulations - wins) * bet_amount) / num_simulations,
+            'total_games': num_sims,
+            'win_rate': wins / num_sims,
+            'total_profit': balance - init_bal,
+            'expected_value': np.mean(all_payouts),
             'win_history': win_history,
             'winning_colors': winning_colors,
-            'probabilities': game.probabilities,
-            'payout_multiplier': game.payout_multiplier
+            'probabilities': game_obj.probabilities,
+            'payout_multiplier': game_obj.payout_multiplier,
+            'all_payouts': all_payouts,
+            'tweak_description': game_obj.tweak_description,
+            'theoretical_ev': game_obj.calculate_theoretical_ev(bet_amt),
+            'house_edge_percent': game_obj.calculate_house_edge(bet_amt)
         }
+    
+    if game_type == "Compare Both":
+        results = {}
+        for gtype in ["Fair Game", "Tweaked Game"]:
+            if gtype == "Fair Game":
+                game = EnhancedColorGame(gtype)
+            else:
+                game = EnhancedColorGame(gtype, tweak_method, house_edge)
+            
+            results[gtype] = simulate_game(game, num_simulations, bet_amount, 
+                                          initial_balance, player_color)
+        return results
+    else:
+        if game_type == "Tweaked Game":
+            game = EnhancedColorGame(game_type, tweak_method, house_edge)
+        else:
+            game = EnhancedColorGame(game_type)
+        
+        return simulate_game(game, num_simulations, bet_amount, 
+                            initial_balance, player_color)
+
+def calculate_kelly_criterion(win_prob, win_multiplier, loss_multiplier=1):
+    """Calculate Kelly Criterion for optimal bet sizing"""
+    if win_prob <= 0 or win_multiplier <= 0:
+        return 0
+    b = win_multiplier / loss_multiplier - 1
+    if b <= 0:
+        return 0
+    kelly = (win_prob * (b + 1) - 1) / b
+    return max(0, min(kelly, 1))  # Clamp between 0 and 1
+
+def calculate_risk_of_ruin(win_prob, win_amount, loss_amount, initial_balance, bet_amount):
+    """Calculate risk of ruin using random walk approximation"""
+    if win_prob <= 0 or win_prob >= 1:
+        return 0 if win_prob >= 1 else 1
+    
+    p = win_prob
+    q = 1 - p
+    win_ratio = win_amount / bet_amount
+    loss_ratio = loss_amount / bet_amount
+    
+    # Simplified risk of ruin calculation
+    if p <= 0.5:
+        return 1.0
+    else:
+        # Using classical gambler's ruin formula
+        try:
+            z = -loss_ratio / win_ratio
+            risk = (z * (initial_balance / bet_amount) - 1) / (z * (initial_balance / bet_amount) - z ** (-initial_balance / bet_amount))
+            return min(1, max(0, risk))
+        except:
+            return 0.5
+
+def perform_statistical_tests(fair_results, tweaked_results):
+    """Perform statistical tests between fair and tweaked results"""
+    fair_payouts = np.array(fair_results['all_payouts'])
+    tweaked_payouts = np.array(tweaked_results['all_payouts'])
+    
+    # T-test for means
+    t_stat, p_value = stats.ttest_ind(fair_payouts, tweaked_payouts, equal_var=False)
+    
+    # Calculate confidence intervals
+    fair_mean = np.mean(fair_payouts)
+    tweaked_mean = np.mean(tweaked_payouts)
+    fair_ci = stats.t.interval(0.95, len(fair_payouts)-1, loc=fair_mean, scale=stats.sem(fair_payouts))
+    tweaked_ci = stats.t.interval(0.95, len(tweaked_payouts)-1, loc=tweaked_mean, scale=stats.sem(tweaked_payouts))
+    
+    # Mann-Whitney U test (non-parametric)
+    u_stat, u_p_value = stats.mannwhitneyu(fair_payouts, tweaked_payouts)
+    
+    return {
+        't_statistic': t_stat,
+        'p_value': p_value,
+        'significant': p_value < 0.05,
+        'fair_mean_ci': fair_ci,
+        'tweaked_mean_ci': tweaked_ci,
+        'u_statistic': u_stat,
+        'u_p_value': u_p_value,
+        'mean_difference': tweaked_mean - fair_mean,
+        'effect_size': (tweaked_mean - fair_mean) / np.sqrt(
+            (np.var(fair_payouts) + np.var(tweaked_payouts)) / 2
+        )
+    }
 
 # Header with enhanced design
 st.markdown("<h1 class='main-title'>🎲 FILIPINO PERYA COLOR GAME SIMULATOR</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Modeling and Simulation of Casino Games with House Edge Analysis | CSEC 413 Final Project</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'> Modeling & Simulation with Multiple House Edge Techniques | CSEC 413 Final Project</p>", unsafe_allow_html=True)
 
 # Sidebar with improved design
 with st.sidebar:
-    st.markdown("<div style='text-align: center; margin-bottom: 2rem;'>", unsafe_allow_html=True)
     st.markdown("### 🎮 CONTROL PANEL")
-    st.markdown("</div>", unsafe_allow_html=True)
     
     # Game parameters in expandable sections
     with st.expander("⚙️ SIMULATION PARAMETERS", expanded=True):
         num_simulations = st.slider(
             "Number of Games", 
-            1000, 50000, 10000, 1000,
+            1000, 100000, 10000, 1000,
             help="More games = more accurate results but slower simulation"
         )
         
@@ -331,7 +479,7 @@ with st.sidebar:
         with col2:
             initial_balance = st.number_input(
                 "Initial Balance (₱)", 
-                min_value=100.0, max_value=10000.0, value=1000.0, step=100.0,
+                min_value=100.0, max_value=100000.0, value=1000.0, step=100.0,
                 help="Starting amount of money"
             )
     
@@ -343,24 +491,11 @@ with st.sidebar:
             help="Fair: Equal probabilities | Tweaked: House advantage | Compare: Side-by-side analysis"
         )
         
-        # Color selection with visual chips
+        # Color selection
         colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
-        color_display = []
-        for color in colors:
-            color_code = {
-                "Red": "#FF4B4B",
-                "Green": "#4CAF50",
-                "Blue": "#2196F3",
-                "Yellow": "#FFD700",
-                "White": "#FFFFFF",
-                "Black": "#000000"
-            }
-            color_display.append(f"<span class='color-chip' style='background-color:{color_code[color]};'></span>{color}")
-        
         player_color = st.selectbox(
             "Your Color:",
             colors,
-            format_func=lambda x: f"<span class='color-chip' style='background-color:{color_code[x]};'></span>{x}",
             help="Choose which color to bet on"
         )
     
@@ -369,18 +504,43 @@ with st.sidebar:
         if game_type == "Tweaked Game" or game_type == "Compare Both":
             house_edge = st.slider(
                 "House Edge (%)", 
-                1.0, 20.0, 5.0, 0.5,
+                0.1, 25.0, 5.0, 0.1,
                 help="Casino's mathematical advantage over players"
             )
-            tweak_type = st.selectbox(
+            
+            tweak_method = st.selectbox(
                 "Tweak Method:", 
-                ["Weighted Probabilities", "Modified Payouts", "Both"],
+                ["Weighted Probabilities", "Modified Payouts", "Normal Distribution", "Both"],
                 help="How the house edge is implemented"
             )
+            
+            if tweak_method == "Modified Payouts" or tweak_method == "Both":
+                payout_reduction = st.slider(
+                    "Payout Reduction (%)",
+                    0.0, 20.0, house_edge/2, 0.1,
+                    help="How much to reduce the payout multiplier"
+                )
+            else:
+                payout_reduction = 0.0
+            
+            if tweak_method == "Normal Distribution":
+                col1, col2 = st.columns(2)
+                with col1:
+                    payout_std = st.slider(
+                        "Payout Volatility (σ)",
+                        1.0, 30.0, 15.0, 0.5,
+                        help="Standard deviation of normal distribution payouts"
+                    )
         
-        # Add animation toggle
-        enable_animations = st.checkbox("Enable Animations", value=True)
-        show_advanced_stats = st.checkbox("Show Advanced Statistics", value=False)
+        # Risk management settings
+        st.markdown("#### 📊 Risk Management")
+        show_kelly = st.checkbox("Show Kelly Criterion", value=True)
+        show_risk_of_ruin = st.checkbox("Show Risk of Ruin", value=True)
+        
+        # Statistical tests
+        st.markdown("#### 🔬 Statistical Tests")
+        perform_t_tests = st.checkbox("Perform Statistical Tests", value=True)
+        confidence_level = st.slider("Confidence Level (%)", 90, 99, 95, 1)
     
     # Run button with better styling
     st.markdown("<br>", unsafe_allow_html=True)
@@ -401,26 +561,36 @@ with st.sidebar:
     
     with col2:
         if game_type != "Fair Game":
-            tweaked_ev = round(fair_ev * 0.95, 2)
+            tweaked_ev = round(fair_ev * (1 - house_edge/100), 2)
             st.metric("Tweaked EV", f"₱{tweaked_ev}")
     
     # Information
     st.markdown("---")
-    with st.expander("ℹ️ ABOUT THIS SIMULATION"):
+    with st.expander("ℹ️ ABOUT ENHANCED FEATURES"):
         st.info("""
-        *Monte Carlo Simulation* uses random sampling to model probabilistic systems.
+        *New Features:*
         
-        *House Edge* represents the casino's long-term advantage.
+        1. *Multiple Tweak Methods:*
+           - Weighted Probabilities
+           - Modified Payouts  
+           - Normal Distribution
+           - Combined Tweaks
         
-        *Expected Value (EV)* is the average outcome per game.
+        2. *Advanced Statistics:*
+           - Statistical hypothesis testing
+           - Confidence intervals
+           - Effect size calculations
         
-        Results may vary due to random sampling.
+        3. *Risk Management:*
+           - Kelly Criterion
+           - Risk of Ruin
+           - Optimal bet sizing
         """)
 
 # Main content
 if run_simulation:
     # Progress animation
-    with st.spinner('🎲 Shuffling probabilities...'):
+    with st.spinner('🎲 Configuring enhanced simulation...'):
         time.sleep(0.5)
     
     # Progress bar with better styling
@@ -434,28 +604,50 @@ if run_simulation:
     for i in range(100):
         time.sleep(0.01)
         progress_bar.progress(i + 1)
-        status_text.text(f"🎯 Running simulation... {i+1}% complete")
+        status_text.text(f"🎯 Running enhanced simulation... {i+1}% complete")
         
         # Update animation placeholder
-        if enable_animations and i % 20 == 0:
+        if i % 20 == 0:
             with simulation_placeholder.container():
-                # Create a simple animation of rolling dice
-                dice_faces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
-                current_dice = dice_faces[i // 20 % 6]
-                st.markdown(f"<h3 style='text-align: center; font-size: 4rem;'>{current_dice}</h3>", unsafe_allow_html=True)
+                # Create a simple animation
+                symbols = ['🎰', '🎲', '♠️', '♥️', '♦️', '♣️']
+                current_symbol = symbols[i // 20 % 6]
+                st.markdown(f"<h3 style='text-align: center; font-size: 4rem;'>{current_symbol}</h3>", unsafe_allow_html=True)
     
-    status_text.success("✅ Simulation complete!")
+    status_text.success("✅ Enhanced simulation complete!")
     simulation_placeholder.empty()
+    
+    # Get simulation parameters
+    tweak_params = {
+        'tweak_method': tweak_method if game_type != "Fair Game" else "None",
+        'house_edge': house_edge if game_type != "Fair Game" else 0,
+        'payout_reduction': payout_reduction if 'payout_reduction' in locals() else 0
+    }
     
     # Run the simulation
     if game_type == "Compare Both":
         results = run_monte_carlo_simulation(
             game_type, num_simulations, bet_amount, 
-            initial_balance, player_color
+            initial_balance, player_color,
+            tweak_method, house_edge
         )
+        
+        # Statistical tests
+        if perform_t_tests:
+            statistical_results = perform_statistical_tests(
+                results["Fair Game"], results["Tweaked Game"]
+            )
         
         # Comparison header
         st.markdown("<h2 class='section-header'>📊 COMPARATIVE ANALYSIS</h2>", unsafe_allow_html=True)
+        
+        # Tweak method description
+        st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+        st.markdown(f"### 🎯 Tweak Method: *{tweak_method}*")
+        if game_type != "Fair Game":
+            st.markdown(f"*House Edge Target:* {house_edge}%")
+            st.markdown(f"*Tweak Description:* {results['Tweaked Game']['tweak_description']}")
+        st.markdown("</div>", unsafe_allow_html=True)
         
         # Create two columns for comparison with badges
         col1, col2 = st.columns(2)
@@ -466,32 +658,70 @@ if run_simulation:
                 badge_class = "badge-fair" if gtype == "Fair Game" else "badge-tweaked"
                 st.markdown(f"<h3><span class='badge {badge_class}'>{gtype.upper()}</span></h3>", unsafe_allow_html=True)
                 
+                # Tweak description for tweaked game
+                if gtype == "Tweaked Game":
+                    st.markdown(f"{result['tweak_description']}")
+                
                 # Metrics in cards
-                with st.container():
-                    col_metric1, col_metric2 = st.columns(2)
-                    with col_metric1:
-                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-                        st.metric(
-                            "Final Balance", 
-                            f"₱{result['final_balance']:,.2f}",
-                            delta=f"₱{result['total_profit']:,.2f}" if result['total_profit'] >= 0 else f"₱{result['total_profit']:,.2f}",
-                            delta_color="normal"
-                        )
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-                        st.metric("Win Rate", f"{result['win_rate']*100:.1f}%")
-                        st.markdown("</div>", unsafe_allow_html=True)
+                col_metric1, col_metric2 = st.columns(2)
+                with col_metric1:
+                    st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                    st.metric(
+                        "Final Balance", 
+                        f"₱{result['final_balance']:,.2f}",
+                        delta=f"₱{result['total_profit']:,.2f}" if result['total_profit'] >= 0 else f"₱{result['total_profit']:,.2f}",
+                        delta_color="normal"
+                    )
+                    st.markdown("</div>", unsafe_allow_html=True)
                     
-                    with col_metric2:
-                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-                        st.metric("Total Games", f"{result['total_games']:,}")
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-                        ev_color = "🟢" if result['expected_value'] > 0 else "🔴"
-                        st.metric("Expected Value", f"₱{result['expected_value']:.2f}")
-                        st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                    st.metric("Win Rate", f"{result['win_rate']*100:.1f}%")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                with col_metric2:
+                    st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                    st.metric("Total Games", f"{result['total_games']:,}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                    ev_icon = "📈" if result['expected_value'] > 0 else "📉"
+                    st.metric("Expected Value", f"₱{result['expected_value']:.3f}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                # House edge calculation
+                if gtype == "Tweaked Game":
+                    st.markdown("<div class='warning-card'>", unsafe_allow_html=True)
+                    st.markdown("#### 🏠 House Edge Analysis")
+                    theoretical_edge = result['house_edge_percent']
+                    empirical_edge = (results['Fair Game']['expected_value'] - result['expected_value']) / bet_amount * 100
+                    st.metric("Theoretical Edge", f"{theoretical_edge:.2f}%")
+                    st.metric("Empirical Edge", f"{empirical_edge:.2f}%")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Risk management metrics
+                if show_kelly or show_risk_of_ruin:
+                    st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+                    st.markdown("#### ⚖️ Risk Management")
+                    
+                    win_prob = result['win_rate']
+                    win_mult = result['payout_multiplier']
+                    
+                    if show_kelly:
+                        kelly = calculate_kelly_criterion(win_prob, win_mult)
+                        optimal_bet = kelly * initial_balance
+                        st.metric("Kelly Criterion", f"{kelly*100:.1f}%")
+                        st.metric("Optimal Bet", f"₱{optimal_bet:.2f}")
+                    
+                    if show_risk_of_ruin:
+                        risk = calculate_risk_of_ruin(
+                            win_prob, 
+                            bet_amount * win_mult, 
+                            bet_amount,
+                            initial_balance, 
+                            bet_amount
+                        )
+                        st.metric("Risk of Ruin", f"{risk*100:.1f}%")
+                    st.markdown("</div>", unsafe_allow_html=True)
                 
                 # Plot balance history
                 fig = go.Figure()
@@ -523,6 +753,70 @@ if run_simulation:
                 )
                 st.plotly_chart(fig, use_container_width=True)
         
+        # Statistical tests section
+        if perform_t_tests:
+            st.markdown("<h3 class='section-header'>🔬 STATISTICAL HYPOTHESIS TESTING</h3>", unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                st.markdown("##### T-Test Results")
+                st.markdown(f"*T-statistic:* {statistical_results['t_statistic']:.4f}")
+                st.markdown(f"*P-value:* {statistical_results['p_value']:.6f}")
+                
+                if statistical_results['significant']:
+                    st.success("✅ *Statistically Significant Difference* (p < 0.05)")
+                    st.markdown("The house edge has a statistically significant impact on outcomes.")
+                else:
+                    st.warning("⚠️ *Not Statistically Significant* (p ≥ 0.05)")
+                    st.markdown("The observed difference could be due to random chance.")
+                
+                st.markdown(f"*Effect Size (Cohen's d):* {statistical_results['effect_size']:.3f}")
+                if abs(statistical_results['effect_size']) < 0.2:
+                    st.markdown("Effect Size: Small")
+                elif abs(statistical_results['effect_size']) < 0.5:
+                    st.markdown("Effect Size: Medium")
+                else:
+                    st.markdown("Effect Size: Large")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                st.markdown("##### Confidence Intervals")
+                st.markdown(f"*{confidence_level}% CI for Fair Game Mean:*")
+                st.markdown(f"₱{statistical_results['fair_mean_ci'][0]:.3f} to ₱{statistical_results['fair_mean_ci'][1]:.3f}")
+                
+                st.markdown(f"*{confidence_level}% CI for Tweaked Game Mean:*")
+                st.markdown(f"₱{statistical_results['tweaked_mean_ci'][0]:.3f} to ₱{statistical_results['tweaked_mean_ci'][1]:.3f}")
+                
+                st.markdown("##### Non-parametric Test")
+                st.markdown(f"*Mann-Whitney U:* {statistical_results['u_statistic']:,.0f}")
+                st.markdown(f"*U-test P-value:* {statistical_results['u_p_value']:.6f}")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Visualize the difference
+            fig = go.Figure()
+            fig.add_trace(go.Box(
+                y=results["Fair Game"]['all_payouts'],
+                name="Fair Game",
+                marker_color='#4CAF50',
+                boxmean=True
+            ))
+            fig.add_trace(go.Box(
+                y=results["Tweaked Game"]['all_payouts'],
+                name="Tweaked Game",
+                marker_color='#FF9800',
+                boxmean=True
+            ))
+            fig.update_layout(
+                title="Distribution of Payouts: Fair vs Tweaked",
+                yaxis_title="Payout (₱)",
+                height=400,
+                template="plotly_white"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
         # Detailed comparison table
         st.markdown("<h3 class='section-header'>📈 DETAILED COMPARISON</h3>", unsafe_allow_html=True)
         
@@ -531,36 +825,44 @@ if run_simulation:
         
         comparison_data = {
             "Metric": ["Final Balance", "Total Profit", "Win Rate", "Expected Value", 
-                      "Total Wins", "Profit/Loss Ratio", "Max Balance", "Min Balance"],
+                      "Theoretical EV", "House Edge (%)", "Total Wins", "Max Drawdown",
+                      "Volatility (Std)", "Sharpe Ratio"],
             "Fair Game": [
                 fair_result['final_balance'],
                 fair_result['total_profit'],
                 fair_result['win_rate'] * 100,
                 fair_result['expected_value'],
+                fair_result['theoretical_ev'],
+                0.0,
                 fair_result['wins'],
-                fair_result['total_profit'] / initial_balance,
-                max(fair_result['history']),
-                min(fair_result['history'])
+                (min(fair_result['history']) - initial_balance) / initial_balance * 100,
+                np.std(fair_result['all_payouts']),
+                fair_result['expected_value'] / np.std(fair_result['all_payouts']) if np.std(fair_result['all_payouts']) > 0 else 0
             ],
             "Tweaked Game": [
                 tweaked_result['final_balance'],
                 tweaked_result['total_profit'],
                 tweaked_result['win_rate'] * 100,
                 tweaked_result['expected_value'],
+                tweaked_result['theoretical_ev'],
+                tweaked_result['house_edge_percent'],
                 tweaked_result['wins'],
-                tweaked_result['total_profit'] / initial_balance,
-                max(tweaked_result['history']),
-                min(tweaked_result['history'])
+                (min(tweaked_result['history']) - initial_balance) / initial_balance * 100,
+                np.std(tweaked_result['all_payouts']),
+                tweaked_result['expected_value'] / np.std(tweaked_result['all_payouts']) if np.std(tweaked_result['all_payouts']) > 0 else 0
             ],
             "Difference": [
                 tweaked_result['final_balance'] - fair_result['final_balance'],
                 tweaked_result['total_profit'] - fair_result['total_profit'],
                 (tweaked_result['win_rate'] - fair_result['win_rate']) * 100,
                 tweaked_result['expected_value'] - fair_result['expected_value'],
+                tweaked_result['theoretical_ev'] - fair_result['theoretical_ev'],
+                tweaked_result['house_edge_percent'],
                 tweaked_result['wins'] - fair_result['wins'],
-                (tweaked_result['total_profit'] / initial_balance) - (fair_result['total_profit'] / initial_balance),
-                max(tweaked_result['history']) - max(fair_result['history']),
-                min(tweaked_result['history']) - min(fair_result['history'])
+                (min(tweaked_result['history']) - min(fair_result['history'])) / initial_balance * 100,
+                np.std(tweaked_result['all_payouts']) - np.std(fair_result['all_payouts']),
+                (tweaked_result['expected_value'] / np.std(tweaked_result['all_payouts']) if np.std(tweaked_result['all_payouts']) > 0 else 0) -
+                (fair_result['expected_value'] / np.std(fair_result['all_payouts']) if np.std(fair_result['all_payouts']) > 0 else 0)
             ]
         }
         
@@ -568,8 +870,15 @@ if run_simulation:
         
         # Style the comparison table
         def color_diff(val):
-            color = 'green' if val > 0 else 'red' if val < 0 else 'gray'
-            return f'color: {color}; font-weight: bold;'
+            if isinstance(val, (int, float)):
+                if "Edge" in df_comparison.columns or "Drawdown" in df_comparison.columns:
+                    # For these metrics, negative is bad for player
+                    color = 'red' if val > 0 else 'green' if val < 0 else 'gray'
+                else:
+                    # For other metrics, positive is good
+                    color = 'green' if val > 0 else 'red' if val < 0 else 'gray'
+                return f'color: {color}; font-weight: bold;'
+            return ''
         
         st.dataframe(
             df_comparison.style.format({
@@ -577,12 +886,13 @@ if run_simulation:
                 "Tweaked Game": "{:,.2f}",
                 "Difference": "{:+,.2f}"
             }).applymap(color_diff, subset=['Difference']),
-            use_container_width=True
+            use_container_width=True,
+            height=400
         )
         
         # Download option for comparison results
         st.markdown("<div class='info-card'>", unsafe_allow_html=True)
-        st.markdown("### 📥 DOWNLOAD RESULTS")
+        st.markdown("### 📥 DOWNLOAD ENHANCED RESULTS")
         
         all_data = []
         for gtype, result in results.items():
@@ -592,32 +902,44 @@ if run_simulation:
                     'Game_Type': gtype,
                     'Game_Number': i + 1,
                     'Balance': result['history'][i] if i < len(result['history']) else None,
+                    'Payout': result['all_payouts'][i] if i < len(result['all_payouts']) else None,
                     'Win': result['win_history'][i] if i < len(result['win_history']) else None,
-                    'Winning_Color': result['winning_colors'][i] if i < len(result['winning_colors']) else None
+                    'Winning_Color': result['winning_colors'][i] if i < len(result['winning_colors']) else None,
+                    'Cumulative_Profit': (result['history'][i] - initial_balance) if i < len(result['history']) else None
                 })
         
         if all_data:
             result_df = pd.DataFrame(all_data)
             csv = result_df.to_csv(index=False)
             st.download_button(
-                label="📊 Download All Simulation Data (CSV)",
+                label="📊 Download All Enhanced Simulation Data (CSV)",
                 data=csv,
-                file_name="perya_color_game_comparison.csv",
+                file_name="enhanced_perya_game_comparison.csv",
                 mime="text/csv",
-                help="Download complete simulation data for further analysis"
+                help="Download complete enhanced simulation data for further analysis"
             )
-        st.markdown("</div>", unsafe_allow_html=True)
         
     else:
         # Single game type results
         result = run_monte_carlo_simulation(
             game_type, num_simulations, bet_amount, 
-            initial_balance, player_color
+            initial_balance, player_color,
+            tweak_method if game_type == "Tweaked Game" else "None",
+            house_edge if game_type == "Tweaked Game" else 0
         )
         
         # Header with game type badge
         badge_type = "badge-fair" if game_type == "Fair Game" else "badge-tweaked"
         st.markdown(f"<h2 class='section-header'><span class='badge {badge_type}'>{game_type.upper()}</span> SIMULATION RESULTS</h2>", unsafe_allow_html=True)
+        
+        # Tweak method description
+        if game_type == "Tweaked Game":
+            st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+            st.markdown(f"### 🎯 Applied Tweak: *{tweak_method}*")
+            st.markdown(f"*{result['tweak_description']}*")
+            st.markdown(f"*Target House Edge:* {house_edge}%")
+            st.markdown(f"*Calculated House Edge:* {result['house_edge_percent']:.2f}%")
+            st.markdown("</div>", unsafe_allow_html=True)
         
         # Key metrics in a grid
         st.markdown("### 📈 KEY PERFORMANCE INDICATORS")
@@ -659,12 +981,78 @@ if run_simulation:
             )
             st.markdown("</div>", unsafe_allow_html=True)
         
+        # Risk management section
+        if show_kelly or show_risk_of_ruin:
+            st.markdown("### ⚖️ RISK MANAGEMENT ANALYSIS")
+            
+            col_risk1, col_risk2, col_risk3 = st.columns(3)
+            
+            with col_risk1:
+                if show_kelly:
+                    st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+                    st.markdown("#### 💰 Kelly Criterion")
+                    win_prob = result['win_rate']
+                    win_mult = result['payout_multiplier']
+                    kelly = calculate_kelly_criterion(win_prob, win_mult)
+                    optimal_bet = kelly * initial_balance
+                    st.metric("Kelly Fraction", f"{kelly*100:.2f}%")
+                    st.metric("Optimal Bet Size", f"₱{optimal_bet:.2f}")
+                    
+                    if kelly > 0:
+                        st.success(f"✅ Recommended bet: {kelly*100:.1f}% of bankroll (₱{optimal_bet:.2f})")
+                    else:
+                        st.warning("⚠️ Negative Kelly: Game is unfavorable, consider not betting")
+                    st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col_risk2:
+                if show_risk_of_ruin:
+                    st.markdown("<div class='warning-card'>", unsafe_allow_html=True)
+                    st.markdown("#### ☠️ Risk of Ruin")
+                    risk = calculate_risk_of_ruin(
+                        result['win_rate'],
+                        bet_amount * result['payout_multiplier'],
+                        bet_amount,
+                        initial_balance,
+                        bet_amount
+                    )
+                    st.metric("Probability of Ruin", f"{risk*100:.2f}%")
+                    
+                    if risk < 0.01:
+                        st.success("✅ Very low risk of ruin")
+                    elif risk < 0.05:
+                        st.info("ℹ️ Moderate risk of ruin")
+                    elif risk < 0.20:
+                        st.warning("⚠️ High risk of ruin")
+                    else:
+                        st.error("🚨 Very high risk of ruin")
+                    
+                    # Calculate safe bankroll
+                    safe_bankroll = bet_amount * np.log(0.01) / np.log(1 - result['win_rate']) if result['win_rate'] < 1 else initial_balance
+                    st.metric("Safe Bankroll", f"₱{safe_bankroll:.0f}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col_risk3:
+                st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                st.markdown("#### 📊 Risk Metrics")
+                
+                volatility = np.std(result['all_payouts'])
+                sharpe = result['expected_value'] / volatility if volatility > 0 else 0
+                max_drawdown = (min(result['history']) - initial_balance) / initial_balance * 100
+                profit_factor = abs(result['wins'] * bet_amount * result['payout_multiplier']) / abs((result['total_games'] - result['wins']) * bet_amount) if result['total_games'] > result['wins'] else float('inf')
+                
+                st.metric("Volatility (σ)", f"₱{volatility:.2f}")
+                st.metric("Sharpe Ratio", f"{sharpe:.3f}")
+                st.metric("Max Drawdown", f"{max_drawdown:.1f}%")
+                st.metric("Profit Factor", f"{profit_factor:.2f}" if profit_factor != float('inf') else "∞")
+                st.markdown("</div>", unsafe_allow_html=True)
+        
         # Tabs for detailed analysis
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "📊 Balance History", 
             "🎯 Win Analysis", 
             "⚖️ Probability Analysis", 
-            "📈 Statistics"
+            "📈 Advanced Statistics",
+            "🔬 Payout Distribution"
         ])
         
         with tab1:
@@ -699,6 +1087,19 @@ if run_simulation:
                 row=1, col=1
             )
             
+            # Theoretical EV line
+            if game_type == "Tweaked Game":
+                theoretical_path = [initial_balance + result['theoretical_ev'] * i for i in range(len(result['history']))]
+                fig.add_trace(
+                    go.Scatter(
+                        y=theoretical_path,
+                        mode='lines',
+                        name='Theoretical EV',
+                        line=dict(color='#4CAF50', width=2, dash='dot')
+                    ),
+                    row=1, col=1
+                )
+            
             # Rolling average
             window_size = min(100, num_simulations // 10)
             if window_size > 1:
@@ -708,7 +1109,7 @@ if run_simulation:
                         y=rolling_avg,
                         mode='lines',
                         name=f'Rolling Avg ({window_size} games)',
-                        line=dict(color='#4CAF50', width=2)
+                        line=dict(color='#FF4B4B', width=2)
                     ),
                     row=2, col=1
                 )
@@ -786,14 +1187,6 @@ if run_simulation:
                         yaxis_title="Frequency"
                     )
                     
-                    # Highlight player's color
-                    if player_color in color_counts.index:
-                        fig.update_traces(
-                            marker_line_width=3,
-                            marker_line_color='black',
-                            selector=dict(name=player_color)
-                        )
-                    
                     st.plotly_chart(fig, use_container_width=True)
         
         with tab3:
@@ -861,9 +1254,11 @@ if run_simulation:
                     st.markdown("<div class='info-card'>", unsafe_allow_html=True)
                     st.markdown("#### 🎰 Game Information")
                     st.markdown(f"*Payout Multiplier:* {result['payout_multiplier']}:1")
-                    st.markdown(f"*Player's Color:* <span class='color-chip' style='background-color:{color_palette[player_color]};'></span>{player_color}", unsafe_allow_html=True)
+                    st.markdown(f"*Player's Color:* {player_color}")
                     st.markdown(f"*Bet Amount:* ₱{bet_amount:,.2f}")
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    if game_type == "Tweaked Game":
+                        st.markdown(f"*Tweak Method:* {tweak_method}")
+                        st.markdown(f"*House Edge:* {result['house_edge_percent']:.2f}%")
                 
                 with col2:
                     if game_type == "Tweaked Game":
@@ -871,31 +1266,39 @@ if run_simulation:
                         st.markdown("#### ⚠️ House Edge Analysis")
                         fair_ev = (1/6) * bet_amount * 5 - (5/6) * bet_amount
                         tweaked_ev = result['expected_value']
-                        house_edge = (fair_ev - tweaked_ev) / bet_amount * 100
-                        st.markdown(f"*Calculated House Edge:* {house_edge:.2f}%")
-                        st.markdown(f"*Player EV:* ₱{tweaked_ev:.3f} per game")
+                        theoretical_ev = result['theoretical_ev']
+                        house_edge_empirical = (fair_ev - tweaked_ev) / bet_amount * 100
+                        st.markdown(f"*Theoretical House Edge:* {result['house_edge_percent']:.2f}%")
+                        st.markdown(f"*Empirical House Edge:* {house_edge_empirical:.2f}%")
+                        st.markdown(f"*Theoretical EV:* ₱{theoretical_ev:.3f} per game")
+                        st.markdown(f"*Empirical EV:* ₱{tweaked_ev:.3f} per game")
                         st.markdown(f"*Fair EV:* ₱{fair_ev:.3f} per game")
-                        st.markdown("</div>", unsafe_allow_html=True)
         
         with tab4:
             # Statistical summary with enhanced metrics
-            st.markdown("### 📊 Statistical Summary")
+            st.markdown("### 📊 Advanced Statistical Summary")
             
             history_series = pd.Series(result['history'])
+            payout_series = pd.Series(result['all_payouts'])
             
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
                 st.markdown("##### Balance Statistics")
+                
+                # Calculate various statistical measures
                 stats_data = {
                     'Statistic': ['Mean Balance', 'Median Balance', 'Std Deviation', 
-                                'Minimum Balance', 'Maximum Balance', 'Range', 
-                                'Interquartile Range (IQR)', 'Coefficient of Variation'],
+                                'Skewness', 'Kurtosis', 'Minimum Balance', 
+                                'Maximum Balance', 'Range', 'IQR',
+                                'Coefficient of Variation'],
                     'Value': [
                         history_series.mean(),
                         history_series.median(),
                         history_series.std(),
+                        history_series.skew(),
+                        history_series.kurtosis(),
                         history_series.min(),
                         history_series.max(),
                         history_series.max() - history_series.min(),
@@ -905,74 +1308,208 @@ if run_simulation:
                 }
                 stats_df = pd.DataFrame(stats_data)
                 st.dataframe(
-                    stats_df.style.format({'Value': '{:,.2f}'}),
-                    use_container_width=True
+                    stats_df.style.format({'Value': '{:,.4f}'}),
+                    use_container_width=True,
+                    height=400
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
             
             with col2:
                 st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-                st.markdown("##### Performance Metrics")
+                st.markdown("##### Payout Statistics")
                 
-                # Risk metrics
-                max_drawdown = (history_series.min() - initial_balance) / initial_balance * 100
-                volatility = history_series.std()
-                
-                metrics_data = {
-                    'Metric': ['Total Return (₱)', 'Return (%)', 'Sharpe Ratio*', 
-                              'Max Drawdown (%)', 'Volatility (₱)', 'Risk of Ruin*',
-                              'Profit Factor', 'Recovery Factor*'],
+                payout_stats = {
+                    'Statistic': ['Mean Payout', 'Median Payout', 'Std Payout',
+                                'Payout Skewness', 'Payout Kurtosis', 'Min Payout',
+                                'Max Payout', 'Positive Payouts', 'Negative Payouts',
+                                'Zero Payouts'],
                     'Value': [
-                        result['total_profit'],
-                        result['total_profit'] / initial_balance * 100,
-                        result['total_profit'] / volatility if volatility > 0 else 0,
-                        max_drawdown,
-                        volatility,
-                        "High" if result['final_balance'] < bet_amount else "Low" if result['final_balance'] < initial_balance * 0.5 else "Medium",
-                        abs(result['wins'] * bet_amount * result['payout_multiplier']) / abs((result['total_games'] - result['wins']) * bet_amount) if result['total_games'] > result['wins'] else float('inf'),
-                        result['total_profit'] / abs(max_drawdown/100 * initial_balance) if max_drawdown < 0 else float('inf')
+                        payout_series.mean(),
+                        payout_series.median(),
+                        payout_series.std(),
+                        payout_series.skew(),
+                        payout_series.kurtosis(),
+                        payout_series.min(),
+                        payout_series.max(),
+                        (payout_series > 0).sum(),
+                        (payout_series < 0).sum(),
+                        (payout_series == 0).sum()
                     ]
                 }
-                metrics_df = pd.DataFrame(metrics_data)
-                
-                # Format values
-                def format_metric(val):
-                    if isinstance(val, (int, float, np.integer, np.floating)):
-                        if abs(val) > 1000:
-                            return f"{val:,.0f}"
-                        elif abs(val) > 1:
-                            return f"{val:,.2f}"
-                        else:
-                            return f"{val:.4f}"
-                    return str(val)
-                
-                metrics_df['Value'] = metrics_df['Value'].apply(format_metric)
-                st.dataframe(metrics_df, use_container_width=True)
-                st.caption("*Approximate calculations for educational purposes")
+                payout_stats_df = pd.DataFrame(payout_stats)
+                st.dataframe(
+                    payout_stats_df.style.format({'Value': '{:,.4f}'}),
+                    use_container_width=True,
+                    height=400
+                )
                 st.markdown("</div>", unsafe_allow_html=True)
             
-            # Distribution plot
-            st.markdown("##### Balance Distribution")
-            fig = px.histogram(
-                history_series,
-                nbins=50,
-                title="Balance Distribution Histogram",
-                labels={'value': 'Balance (₱)', 'count': 'Frequency'}
+            # Normality test
+            st.markdown("##### 🧪 Normality Tests")
+            col_norm1, col_norm2 = st.columns(2)
+            
+            with col_norm1:
+                st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+                st.markdown("###### Shapiro-Wilk Test")
+                if len(payout_series) <= 5000:  # Shapiro-Wilk has limit
+                    shapiro_stat, shapiro_p = stats.shapiro(payout_series)
+                    st.metric("W-statistic", f"{shapiro_stat:.4f}")
+                    st.metric("P-value", f"{shapiro_p:.6f}")
+                    if shapiro_p < 0.05:
+                        st.warning("❌ Reject normality: Payouts are not normally distributed")
+                    else:
+                        st.success("✅ Cannot reject normality")
+                else:
+                    st.info("Dataset too large for Shapiro-Wilk test")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col_norm2:
+                st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+                st.markdown("###### Kolmogorov-Smirnov Test")
+                # Test against normal distribution with same mean and std
+                ks_stat, ks_p = stats.kstest(payout_series, 'norm', 
+                                           args=(payout_series.mean(), payout_series.std()))
+                st.metric("KS-statistic", f"{ks_stat:.4f}")
+                st.metric("P-value", f"{ks_p:.6f}")
+                if ks_p < 0.05:
+                    st.warning("❌ Reject normality")
+                else:
+                    st.success("✅ Cannot reject normality")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            # QQ Plot
+            st.markdown("##### 📊 Q-Q Plot (Normality Check)")
+            fig = go.Figure()
+            
+            # Theoretical quantiles
+            theoretical_q = np.sort(stats.norm.ppf(np.linspace(0.01, 0.99, len(payout_series))))
+            actual_q = np.sort(payout_series)
+            
+            fig.add_trace(go.Scatter(
+                x=theoretical_q,
+                y=actual_q,
+                mode='markers',
+                name='Q-Q Points',
+                marker=dict(size=6, color='#2196F3')
+            ))
+            
+            # Add reference line
+            min_val = min(theoretical_q.min(), actual_q.min())
+            max_val = max(theoretical_q.max(), actual_q.max())
+            fig.add_trace(go.Scatter(
+                x=[min_val, max_val],
+                y=[min_val, max_val],
+                mode='lines',
+                name='Reference Line',
+                line=dict(color='red', dash='dash')
+            ))
+            
+            fig.update_layout(
+                title="Q-Q Plot: Checking Normality of Payouts",
+                xaxis_title="Theoretical Quantiles",
+                yaxis_title="Sample Quantiles",
+                height=400,
+                template="plotly_white"
             )
-            fig.add_vline(
-                x=initial_balance,
-                line_dash="dash",
-                line_color="red",
-                annotation_text="Initial Balance"
-            )
-            fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
+        
+        with tab5:
+            # Payout distribution analysis
+            st.markdown("### 💰 Payout Distribution Analysis")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Histogram of payouts
+                fig = px.histogram(
+                    result['all_payouts'],
+                    nbins=50,
+                    title="Distribution of Payouts",
+                    labels={'value': 'Payout (₱)', 'count': 'Frequency'},
+                    color_discrete_sequence=['#2196F3']
+                )
+                fig.add_vline(
+                    x=0,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text="Break-even"
+                )
+                fig.add_vline(
+                    x=np.mean(result['all_payouts']),
+                    line_dash="dash",
+                    line_color="green",
+                    annotation_text=f"Mean: ₱{np.mean(result['all_payouts']):.2f}"
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Cumulative distribution function
+                sorted_payouts = np.sort(result['all_payouts'])
+                cdf = np.arange(1, len(sorted_payouts) + 1) / len(sorted_payouts)
+                
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=sorted_payouts,
+                    y=cdf,
+                    mode='lines',
+                    name='CDF',
+                    line=dict(color='#FF4B4B', width=2)
+                ))
+                
+                # Add vertical lines for key percentiles
+                percentiles = [0.05, 0.25, 0.5, 0.75, 0.95]
+                for p in percentiles:
+                    percentile_val = np.percentile(result['all_payouts'], p * 100)
+                    fig.add_vline(
+                        x=percentile_val,
+                        line_dash="dot",
+                        line_color="gray",
+                        annotation_text=f"{p*100:.0f}%: ₱{percentile_val:.2f}"
+                    )
+                
+                fig.update_layout(
+                    title="Cumulative Distribution Function (CDF)",
+                    xaxis_title="Payout (₱)",
+                    yaxis_title="Cumulative Probability",
+                    height=400,
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Payout statistics table
+            st.markdown("##### 📋 Payout Percentiles")
+            percentile_data = {
+                'Percentile': ['5th', '25th (Q1)', '50th (Median)', '75th (Q3)', '95th', '99th'],
+                'Value (₱)': [
+                    np.percentile(result['all_payouts'], 5),
+                    np.percentile(result['all_payouts'], 25),
+                    np.percentile(result['all_payouts'], 50),
+                    np.percentile(result['all_payouts'], 75),
+                    np.percentile(result['all_payouts'], 95),
+                    np.percentile(result['all_payouts'], 99)
+                ],
+                'Interpretation': [
+                    "5% of payouts are below this",
+                    "25% of payouts are below this",
+                    "Median payout",
+                    "75% of payouts are below this",
+                    "95% of payouts are below this",
+                    "99% of payouts are below this"
+                ]
+            }
+            
+            percentile_df = pd.DataFrame(percentile_data)
+            st.dataframe(
+                percentile_df.style.format({'Value (₱)': '₱{:,.2f}'}),
+                use_container_width=True
+            )
     
     # Download results for single game
     if game_type != "Compare Both":
         actual_games = len(result['history'])
         
-        # Create result DataFrame
+        # Create enhanced result DataFrame
         game_numbers = list(range(1, actual_games + 1))
         balances = result['history']
         
@@ -988,9 +1525,14 @@ if run_simulation:
         elif len(winning_colors) > actual_games:
             winning_colors = winning_colors[:actual_games]
         
+        payouts = result.get('all_payouts', [0] * actual_games)
+        if len(payouts) < actual_games:
+            payouts.extend([0] * (actual_games - len(payouts)))
+        
         result_df = pd.DataFrame({
             'Game_Number': game_numbers[:actual_games],
             'Balance': balances[:actual_games],
+            'Payout': payouts[:actual_games],
             'Win': win_history[:actual_games],
             'Winning_Color': winning_colors[:actual_games],
             'Cumulative_Profit': [bal - initial_balance for bal in balances[:actual_games]]
@@ -999,213 +1541,385 @@ if run_simulation:
         csv = result_df.to_csv(index=False)
         
         st.markdown("<div class='info-card'>", unsafe_allow_html=True)
-        st.markdown("### 📥 DOWNLOAD SIMULATION DATA")
+        st.markdown("### 📥 DOWNLOAD ENHANCED SIMULATION DATA")
         st.download_button(
-            label=f"📊 Download {game_type} Data (CSV)",
+            label=f"📊 Download {game_type} Enhanced Data (CSV)",
             data=csv,
-            file_name=f"perya_{game_type.replace(' ', '_').lower()}_simulation.csv",
+            file_name=f"enhanced_perya_{game_type.replace(' ', '_').lower()}_simulation.csv",
             mime="text/csv",
-            help="Download complete simulation data for further analysis"
+            help="Download complete enhanced simulation data for further analysis"
         )
-        st.markdown("</div>", unsafe_allow_html=True)
     
     # Simulation insights with enhanced presentation
-    st.markdown("<h2 class='section-header'>🧠 SIMULATION INSIGHTS & KEY TAKEAWAYS</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 class='section-header'>🧠 SIMULATION INSIGHTS</h2>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("<div class='info-card'>", unsafe_allow_html=True)
-        st.markdown("#### 📈 Mathematical Principles")
+        st.markdown("#### 📈 Mathematical Insights")
         st.markdown("""
-        *Law of Large Numbers*: 
-        As simulation size increases, results converge to expected values.
+        *Multiple House Edge Methods:*
+        - Weighted probabilities shift win likelihood
+        - Modified payouts reduce win amounts
+        - Normal distribution creates variance
+        - Combined methods maximize edge
         
-        *House Edge Impact*: 
-        Even 1-2% edge significantly affects long-term profitability.
-        
-        *Expected Value (EV)*:
-        Average outcome per game determines long-term results.
-        
-        *Monte Carlo Method*:
-        Random sampling approximates complex probabilistic systems.
+        *Statistical Significance:*
+        - Hypothesis tests validate results
+        - Confidence intervals show uncertainty
+        - Effect sizes measure impact magnitude
         """)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<div class='warning-card'>", unsafe_allow_html=True)
-        st.markdown("#### ⚠️ Practical Implications")
+        st.markdown("#### ⚠️ Risk Management Insights")
         st.markdown("""
-        *Bankroll Management*:
-        Bet size relative to balance is crucial for survival.
+        *Kelly Criterion:*
+        - Optimal bet sizing formula
+        - Maximizes long-term growth
+        - Prevents over-betting
         
-        *Short-term Variance*:
-        Results can deviate significantly from EV in small samples.
+        *Risk of Ruin:*
+        - Probability of losing everything
+        - Depends on edge and bankroll
+        - Key for survival strategy
         
-        *Casino Profitability*:
-        House edge ensures long-term profitability despite volatility.
-        
-        *Player Psychology*:
-        Short-term wins can mask long-term disadvantage.
+        *Bankroll Management:*
+        - Bet size relative to edge
+        - Volatility considerations
+        - Drawdown limits
         """)
-        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.markdown("#### 🔬 Advanced Analysis")
+        st.markdown("""
+        *Distribution Analysis:*
+        - Normality testing
+        - Percentile analysis
+        - Skewness and kurtosis
+        
+        *Statistical Tests:*
+        - T-tests for means
+        - Non-parametric tests
+        - Confidence intervals
+        
+        *Practical Applications:*
+        - Game design optimization
+        - Risk assessment
+        - Profitability analysis
+        """)
 
 else:
     # Default view - Landing page with enhanced design
-    st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='color: #2E4053; margin-bottom: 2rem;'>🎯 PROJECT OVERVIEW & INTRODUCTION</h2>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #2E4053; margin-bottom: 2rem; text-align: center;'>🎯 PROJECT OVERVIEW</h2>", unsafe_allow_html=True)
     
     # Introduction cards
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        st.markdown("### 🎮 The Game")
+        st.markdown("### 🎮 Enhanced Game")
         st.markdown("""
-        Traditional Filipino "Perya" color game
-        - 6 colors to bet on
-        - 5:1 payout for correct guess
-        - Random selection mechanism
-        - Simple yet profound probability model
+        Traditional Filipino "Perya" with:
+        - 4 house edge methods
+        - Statistical testing
+        - Risk management tools
+        - Advanced analytics
         """)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        st.markdown("### 🔬 The Science")
+        st.markdown("### 🔬 Advanced Science")
         st.markdown("""
-        Monte Carlo Simulation
-        - 10,000+ game simulations
-        - Statistical analysis
-        - Probability modeling
-        - Stochastic process visualization
+        Enhanced Monte Carlo:
+        - Multiple tweak methods
+        - Hypothesis testing
+        - Confidence intervals
+        - Distribution analysis
         """)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col3:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        st.markdown("### 🎯 The Purpose")
+        st.markdown("### 🎯 Enhanced Purpose")
         st.markdown("""
-        Educational Demonstration
-        - Understand house edge
-        - Analyze risk vs reward
-        - Visualize probability
-        - Learn statistical modeling
-        """)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    # How to use section
-    st.markdown("<h3 class='section-header'>🚀 GETTING STARTED</h3>", unsafe_allow_html=True)
-    
-    steps_col1, steps_col2 = st.columns(2)
-    
-    with steps_col1:
-        st.markdown("""
-        ### 📋 Quick Start Guide
-        
-        1. *Adjust Parameters* in sidebar
-        2. *Select Game Type* (Fair/Tweaked/Compare)
-        3. *Choose Your Color* to bet on
-        4. *Click RUN SIMULATION* button
-        5. *Analyze Results* in real-time
-        
-        ### ⚙️ Recommended Settings
-        
-        - *Beginner*: 1,000 games, Fair Game
-        - *Intermediate*: 10,000 games, Compare Both
-        - *Advanced*: 50,000 games, Tweaked Game
-        
-        ### 🎯 Tips for Learning
-        
-        Start with small simulations to understand patterns, then scale up for more accurate results.
+        Advanced Education:
+        - Multiple edge strategies
+        - Statistical validation
+        - Risk quantification
+        - Professional analysis
         """)
     
-    with steps_col2:
-        # Interactive example visualization
-        st.markdown("#### 📊 Example Visualizations")
+    # New features showcase
+    st.markdown("<h3 class='section-header'>🚀  FEATURES</h3>", unsafe_allow_html=True)
+    
+    features_col1, features_col2 = st.columns(2)
+    
+    with features_col1:
+        st.markdown("""
+        ### 📋 New Tweak Methods
         
-        tab1, tab2 = st.tabs(["Fair Game", "Tweaked Game"])
+        1. *Weighted Probabilities*
+           - Adjust win probabilities
+           - Shift likelihood to house colors
+           - Maintains apparent fairness
         
-        with tab1:
+        2. *Modified Payouts*
+           - Reduce win amounts
+           - Keep probabilities fair
+           - Hidden edge in payouts
+        
+        3. *Normal Distribution*
+           - Variable payout amounts
+           - Negative mean for edge
+           - High variance for excitement
+        
+        4. *Combined Methods*
+           - Multiple edge sources
+           - Smaller individual tweaks
+           - Harder to detect
+        """)
+    
+    with features_col2:
+        st.markdown("""
+        ### 🔬 Advanced Analytics
+        
+        *Statistical Testing:*
+        - T-tests for significance
+        - Confidence intervals
+        - Effect size calculation
+        - Non-parametric tests
+        
+        *Risk Management:*
+        - Kelly Criterion
+        - Risk of Ruin
+        - Optimal bet sizing
+        - Bankroll safety
+        
+        *Distribution Analysis:*
+        - Normality tests
+        - Percentile analysis
+        - Skewness & kurtosis
+        - Q-Q plots
+        """)
+    
+    # Tweak method visualization
+    st.markdown("<h3 class='section-header'>🎯 HOUSE EDGE METHODS VISUALIZATION</h3>", unsafe_allow_html=True)
+    
+    tabs = st.tabs(["Weighted Probabilities", "Modified Payouts", "Normal Distribution", "Combined"])
+    
+    with tabs[0]:
+        col1, col2 = st.columns(2)
+        with col1:
             fair_probs = [1/6] * 6
-            fig = go.Figure(data=[go.Pie(
-                labels=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
-                values=fair_probs,
-                hole=.4,
-                marker_colors=['#FF4B4B', '#4CAF50', '#2196F3', '#FFD700', '#666666', '#000000']
-            )])
+            tweaked_probs = [0.12, 0.12, 0.12, 0.213, 0.213, 0.214]
+            
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
+                y=fair_probs,
+                name='Fair',
+                marker_color='lightblue'
+            ))
+            fig.add_trace(go.Bar(
+                x=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
+                y=tweaked_probs,
+                name='Weighted',
+                marker_color='coral'
+            ))
             fig.update_layout(
-                title="Fair Game: Equal Probabilities",
-                height=300,
-                annotations=[dict(
-                    text="16.67% each",
-                    x=0.5, y=0.5,
-                    font_size=14,
-                    showarrow=False
-                )]
+                title="Weighted Probabilities Method",
+                yaxis_title="Probability",
+                barmode='group',
+                height=400
             )
             st.plotly_chart(fig, use_container_width=True)
         
-        with tab2:
-            tweaked_probs = [0.14, 0.14, 0.14, 0.19, 0.19, 0.20]
-            fig = go.Figure(data=[go.Pie(
-                labels=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
-                values=tweaked_probs,
-                hole=.4,
-                marker_colors=['#FF4B4B', '#4CAF50', '#2196F3', '#FFD700', '#666666', '#000000']
+        with col2:
+            st.markdown("""
+            #### How it works:
+            
+            *Player colors (Red, Green, Blue):*
+            - Probability reduced by ~29%
+            - From 16.67% to 12.0%
+            
+            *House colors (Yellow, White, Black):*
+            - Probability increased by ~28%
+            - From 16.67% to 21.33%
+            
+            *Result:*
+            - Player win probability: 36% vs 50% fair
+            - House edge: ~14%
+            - Payout remains 5:1
+            """)
+    
+    with tabs[1]:
+        col1, col2 = st.columns(2)
+        with col1:
+            multipliers = ['5.0', '4.75', '4.5', '4.25', '4.0']
+            house_edges = ['0%', '5%', '10%', '15%', '20%']
+            
+            fig = go.Figure(data=[go.Bar(
+                x=house_edges,
+                y=multipliers,
+                orientation='h',
+                marker_color=['#4CAF50', '#FF9800', '#FF5722', '#F44336', '#D32F2F']
             )])
             fig.update_layout(
-                title="Tweaked Game: Weighted Probabilities",
-                height=300,
-                annotations=[dict(
-                    text="~5% House Edge",
-                    x=0.5, y=0.5,
-                    font_size=14,
-                    showarrow=False
-                )]
+                title="Modified Payouts Method",
+                xaxis_title="House Edge",
+                yaxis_title="Payout Multiplier",
+                height=400
             )
             st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("""
+            #### How it works:
+            
+            *Fair Game:*
+            - Payout: 5.0× bet
+            - House edge: 0%
+            
+            *Tweaked Games:*
+            - Payout: 4.75× (5% edge)
+            - Payout: 4.5× (10% edge)
+            - Payout: 4.25× (15% edge)
+            - Payout: 4.0× (20% edge)
+            
+            *Advantages:*
+            - Probabilities remain fair
+            - Easy to calculate edge
+            - Players may not notice
+            """)
+    
+    with tabs[2]:
+        col1, col2 = st.columns(2)
+        with col1:
+            x = np.linspace(-50, 100, 1000)
+            fair_pdf = stats.norm.pdf(x, 0, 20)
+            tweaked_pdf = stats.norm.pdf(x, -5, 25)
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=x, y=fair_pdf,
+                mode='lines',
+                name='Fair (μ=0)',
+                line=dict(color='#4CAF50', width=3)
+            ))
+            fig.add_trace(go.Scatter(
+                x=x, y=tweaked_pdf,
+                mode='lines',
+                name='Tweaked (μ=-5)',
+                line=dict(color='#FF9800', width=3)
+            ))
+            fig.update_layout(
+                title="Normal Distribution Payouts",
+                xaxis_title="Payout (₱)",
+                yaxis_title="Probability Density",
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("""
+            #### How it works:
+            
+            *Fair Distribution:*
+            - Mean payout: ₱0
+            - High variance
+            - Symmetrical
+            
+            *Tweaked Distribution:*
+            - Mean payout: -₱5
+            - Higher variance
+            - Shifted left
+            
+            *Key Features:*
+            - Negative mean creates edge
+            - High variance = excitement
+            - Occasional big wins
+            - Overall loss guaranteed
+            """)
+    
+    with tabs[3]:
+        col1, col2 = st.columns(2)
+        with col1:
+            methods = ['Probability\nTweak', 'Payout\nTweak', 'Combined\nTweak']
+            edges = [7.0, 7.0, 14.0]
+            
+            fig = go.Figure(data=[go.Bar(
+                x=methods,
+                y=edges,
+                marker_color=['#FF9800', '#2196F3', '#FF4B4B']
+            )])
+            fig.update_layout(
+                title="Combined Method Edge Distribution",
+                yaxis_title="House Edge (%)",
+                height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.markdown("""
+            #### How it works:
+            
+            *Split Edge Strategy:*
+            - Half from probabilities
+            - Half from payouts
+            - Total edge: sum of both
+            
+            *Example (14% edge):*
+            - Probabilities: 7% edge
+            - Payouts: 7% edge
+            - Total: 14% edge
+            
+            *Advantages:*
+            - Each tweak smaller
+            - Harder to detect
+            - More robust
+            - Can adjust balance
+            """)
     
     # Learning outcomes
     st.markdown("<h3 class='section-header'>🎓 LEARNING OUTCOMES</h3>", unsafe_allow_html=True)
     
-    outcomes = """
+    st.markdown("""
     #### 📊 What You'll Learn:
     
-    1. *Probability Theory*: Understanding of independent events and expected value
-    2. *Statistical Analysis*: Interpretation of simulation results and confidence intervals
-    3. *Casino Mathematics*: How house edge affects long-term profitability
-    4. *Monte Carlo Methods*: Application of computational statistics
-    5. *Risk Management*: Bankroll management and bet sizing strategies
-    6. *Data Visualization*: Effective presentation of statistical data
+    1. *Advanced Probability Theory*: Multiple methods to create house edge
+    2. *Statistical Hypothesis Testing*: Validating results with statistical tests
+    3. *Risk Management Mathematics*: Kelly Criterion and Risk of Ruin calculations
+    4. *Distribution Analysis*: Understanding payout distributions and normality
+    5. *Game Design Principles*: Balancing excitement with profitability
+    6. *Professional Analytics*: Confidence intervals, effect sizes, and significance
     
-    #### 🔍 Key Concepts Covered:
+    #### 🔍 Advanced Concepts Covered:
     
-    - *Expected Value (EV)*: Mathematical expectation per game
-    - *House Edge*: Casino's mathematical advantage
-    - *Law of Large Numbers*: Convergence to theoretical probabilities
-    - *Volatility*: Short-term vs long-term results
-    - *Risk of Ruin*: Probability of losing entire bankroll
+    - *Multiple Edge Creation*: Four different methods to establish house advantage
+    - *Statistical Validation*: T-tests, confidence intervals, and p-values
+    - *Risk Quantification*: Mathematical risk management tools
+    - *Distribution Properties*: Skewness, kurtosis, and normality testing
+    - *Optimal Strategies*: Kelly betting and bankroll management
     
-    #### 💡 Real-world Applications:
+    #### 💡 Professional Applications:
     
-    - Casino game design and analysis
-    - Financial risk modeling
-    - Insurance probability calculations
-    - Game theory applications
-    - Statistical quality control
-    """
-    
-    st.markdown(outcomes)
+    - Casino game design and regulation
+    - Financial risk modeling and assessment
+    - Insurance product pricing
+    - Statistical quality control in gaming
+    - Academic research in probability
+    - Regulatory compliance analysis
+    """)
 
 # Enhanced Footer
 st.markdown("""
 <div class='footer'>
-    <h3>🎓 CSEC 413 - Modeling and Simulation</h3>
-    <p><strong>Final Project: Stochastic Game Simulation & Analysis</strong></p>
-    <p>This educational tool demonstrates mathematical concepts behind casino games.</p>
-    <p style='color: #FF4B4B; font-weight: bold;'>⚠️ Gambling involves significant risk. This simulation is for educational purposes only.</p>
-    <p>© 2024 Filipino Perya Game Simulation | Made with Streamlit & Plotly</p>
+    <h3>🎓 CSEC 413 -  Modeling and Simulation</h3>
+    <p><strong>Final Project: Stochastic Game Simulation with Multiple House Edge Methods</strong></p>
+    <p>This educational tool demonstrates advanced mathematical concepts behind casino games including statistical testing and risk management.</p>
+    <p style='color: #FF4B4B; font-weight: bold;'>⚠️ Gambling involves significant risk of financial loss. This simulation is for educational purposes only.</p>
+    <p>© 2024 Enhanced Filipino Perya Game Simulation | Made with Streamlit & Plotly</p>
 </div>
 """, unsafe_allow_html=True)
