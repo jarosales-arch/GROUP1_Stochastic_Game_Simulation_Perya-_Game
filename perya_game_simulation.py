@@ -7,81 +7,185 @@ from scipy import stats
 import time
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
+import warnings
+warnings.filterwarnings('ignore')
 
 # Set page configuration
 st.set_page_config(
     page_title="Perya Game Simulation",
     page_icon="🎰",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS with improved design
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        color: #FF4B4B;
+    /* Main styling */
+    .main-title {
+        font-size: 3.5rem;
+        background: linear-gradient(90deg, #FF4B4B 0%, #FF9F43 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
+        font-weight: 800;
     }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #0E1117;
+    
+    .subtitle {
+        font-size: 1.2rem;
+        color: #666;
+        text-align: center;
+        margin-bottom: 2.5rem;
+        font-weight: 300;
+    }
+    
+    .section-header {
+        font-size: 1.8rem;
+        color: #2E4053;
         margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #FF4B4B;
+        font-weight: 600;
     }
+    
+    /* Cards and containers */
     .metric-card {
-        background-color: #F0F2F6;
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         padding: 1.5rem;
-        border-radius: 10px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         margin: 1rem 0;
+        border-left: 5px solid #FF4B4B;
+        transition: transform 0.3s ease;
     }
-    .stButton>button {
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .info-card {
+        background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        margin: 1rem 0;
+        border-left: 5px solid #2196F3;
+    }
+    
+    .warning-card {
+        background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        margin: 1rem 0;
+        border-left: 5px solid #FF9800;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(90deg, #FF4B4B 0%, #FF9F43 100%);
+        color: white;
+        font-weight: 600;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        transition: all 0.3s ease;
         width: 100%;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 75, 75, 0.4);
+    }
+    
+    /* Sidebar */
+    .sidebar .sidebar-content {
+        background: linear-gradient(180deg, #2E4053 0%, #1C2833 100%);
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+        background-color: transparent;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #F0F2F6;
+        border-radius: 10px 10px 0 0;
+        gap: 1rem;
+        padding: 1rem;
+        font-weight: 600;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #FF4B4B !important;
+        color: white !important;
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #FF4B4B 0%, #FF9F43 100%);
+    }
+    
+    /* Dataframes */
+    .dataframe {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
+    
+    .badge-fair {
+        background-color: #4CAF50;
+        color: white;
+    }
+    
+    .badge-tweaked {
+        background-color: #FF9800;
+        color: white;
+    }
+    
+    /* Color chips */
+    .color-chip {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: middle;
+        border: 2px solid rgba(0,0,0,0.1);
+    }
+    
+    /* Footer */
+    .footer {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+        font-size: 0.9rem;
+        border-top: 1px solid #eee;
+        margin-top: 3rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.markdown("<h1 class='main-header'>🎲 Filipino Perya: Color Game Simulation</h1>", unsafe_allow_html=True)
-st.markdown("### Modeling and Simulation of Casino Games with House Edge Analysis")
-
-# Sidebar for controls
-with st.sidebar:
-    st.header("🎮 Game Controls")
-    
-    # Game parameters
-    st.subheader("Simulation Parameters")
-    num_simulations = st.slider("Number of Games per Simulation", 1000, 50000, 10000, 1000)
-    bet_amount = st.number_input("Bet Amount per Game (PHP)", min_value=1.0, max_value=1000.0, value=10.0, step=10.0)
-    initial_balance = st.number_input("Player Initial Balance (PHP)", min_value=100.0, max_value=10000.0, value=1000.0, step=100.0)
-    
-    # Game type selection
-    game_type = st.radio("Select Game Type:", ["Fair Game", "Tweaked Game", "Compare Both"])
-    
-    # Color selection
-    st.subheader("Betting Strategy")
-    colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
-    player_color = st.selectbox("Choose your color:", colors)
-    
-    # Run simulation button
-    run_simulation = st.button("🚀 Run Simulation", type="primary")
-    
-    # Additional controls
-    st.subheader("Advanced Settings")
-    show_advanced = st.checkbox("Show Advanced Settings")
-    
-    if show_advanced:
-        if game_type == "Tweaked Game" or game_type == "Compare Both":
-            house_edge = st.slider("House Edge (%)", 1.0, 20.0, 5.0, 0.5)
-            tweak_type = st.selectbox("Tweak Method:", 
-                                     ["Weighted Probabilities", "Modified Payouts", "Both"])
-
-# Game logic functions
+# Game logic functions (UNCHANGED - keeping original functionality)
 class ColorGame:
     def __init__(self, game_type="Fair Game", house_edge=5.0):
         self.colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
         self.game_type = game_type
-        self.house_edge = house_edge / 100  # Convert to decimal
+        self.house_edge = house_edge / 100
         
         if game_type == "Fair Game":
             self.setup_fair_game()
@@ -89,36 +193,28 @@ class ColorGame:
             self.setup_tweaked_game()
     
     def setup_fair_game(self):
-        # Fair probabilities (1/6 each)
         self.probabilities = [1/6] * 6
-        self.payout_multiplier = 5.0  # 5-to-1 payout for fair game
+        self.payout_multiplier = 5.0
     
     def setup_tweaked_game(self):
-        # Create house edge through weighted probabilities
         base_prob = 1/6
         reduction = self.house_edge / 6
         
-        # Reduce probability for player-favored colors, increase for others
         self.probabilities = []
         for i in range(6):
-            if i < 3:  # First three colors have lower probability
+            if i < 3:
                 prob = base_prob - reduction
-            else:  # Last three colors have higher probability
+            else:
                 prob = base_prob + reduction
             self.probabilities.append(prob)
         
-        # Normalize probabilities
         total = sum(self.probabilities)
         self.probabilities = [p/total for p in self.probabilities]
-        
-        # Slightly reduce payout
-        self.payout_multiplier = 4.8  # Reduced from 5.0
+        self.payout_multiplier = 4.8
     
     def play_round(self, player_color, bet_amount):
-        # Determine winning color based on probabilities
         winning_color = np.random.choice(self.colors, p=self.probabilities)
         
-        # Check if player wins
         if player_color == winning_color:
             win_amount = bet_amount * self.payout_multiplier
             return True, win_amount, winning_color
@@ -126,7 +222,6 @@ class ColorGame:
             return False, -bet_amount, winning_color
 
 def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_balance, player_color):
-    """Run Monte Carlo simulation"""
     if game_type == "Compare Both":
         results = {}
         for gtype in ["Fair Game", "Tweaked Game"]:
@@ -139,7 +234,6 @@ def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_b
             
             for i in range(num_simulations):
                 if balance < bet_amount:
-                    # Player is bankrupt
                     history.append(balance)
                     win_history.append(False)
                     winning_colors.append(None)
@@ -171,7 +265,6 @@ def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_b
         return results
     
     else:
-        # Single game type simulation
         game = ColorGame(game_type)
         balance = initial_balance
         history = []
@@ -210,19 +303,149 @@ def run_monte_carlo_simulation(game_type, num_simulations, bet_amount, initial_b
             'payout_multiplier': game.payout_multiplier
         }
 
-# Main app logic
+# Header with enhanced design
+st.markdown("<h1 class='main-title'>🎲 FILIPINO PERYA COLOR GAME SIMULATOR</h1>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Modeling and Simulation of Casino Games with House Edge Analysis | CSEC 413 Final Project</p>", unsafe_allow_html=True)
+
+# Sidebar with improved design
+with st.sidebar:
+    st.markdown("<div style='text-align: center; margin-bottom: 2rem;'>", unsafe_allow_html=True)
+    st.markdown("### 🎮 CONTROL PANEL")
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Game parameters in expandable sections
+    with st.expander("⚙️ SIMULATION PARAMETERS", expanded=True):
+        num_simulations = st.slider(
+            "Number of Games", 
+            1000, 50000, 10000, 1000,
+            help="More games = more accurate results but slower simulation"
+        )
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            bet_amount = st.number_input(
+                "Bet Amount (₱)", 
+                min_value=1.0, max_value=1000.0, value=10.0, step=10.0,
+                help="Amount bet on each game"
+            )
+        with col2:
+            initial_balance = st.number_input(
+                "Initial Balance (₱)", 
+                min_value=100.0, max_value=10000.0, value=1000.0, step=100.0,
+                help="Starting amount of money"
+            )
+    
+    with st.expander("🎯 GAME SETTINGS", expanded=True):
+        game_type = st.radio(
+            "Game Type:",
+            ["Fair Game", "Tweaked Game", "Compare Both"],
+            index=2,
+            help="Fair: Equal probabilities | Tweaked: House advantage | Compare: Side-by-side analysis"
+        )
+        
+        # Color selection with visual chips
+        colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
+        color_display = []
+        for color in colors:
+            color_code = {
+                "Red": "#FF4B4B",
+                "Green": "#4CAF50",
+                "Blue": "#2196F3",
+                "Yellow": "#FFD700",
+                "White": "#FFFFFF",
+                "Black": "#000000"
+            }
+            color_display.append(f"<span class='color-chip' style='background-color:{color_code[color]};'></span>{color}")
+        
+        player_color = st.selectbox(
+            "Your Color:",
+            colors,
+            format_func=lambda x: f"<span class='color-chip' style='background-color:{color_code[x]};'></span>{x}",
+            help="Choose which color to bet on"
+        )
+    
+    # Advanced settings
+    with st.expander("🔧 ADVANCED SETTINGS", expanded=False):
+        if game_type == "Tweaked Game" or game_type == "Compare Both":
+            house_edge = st.slider(
+                "House Edge (%)", 
+                1.0, 20.0, 5.0, 0.5,
+                help="Casino's mathematical advantage over players"
+            )
+            tweak_type = st.selectbox(
+                "Tweak Method:", 
+                ["Weighted Probabilities", "Modified Payouts", "Both"],
+                help="How the house edge is implemented"
+            )
+        
+        # Add animation toggle
+        enable_animations = st.checkbox("Enable Animations", value=True)
+        show_advanced_stats = st.checkbox("Show Advanced Statistics", value=False)
+    
+    # Run button with better styling
+    st.markdown("<br>", unsafe_allow_html=True)
+    run_simulation = st.button(
+        "🚀 RUN MONTE CARLO SIMULATION", 
+        type="primary",
+        use_container_width=True
+    )
+    
+    # Quick stats in sidebar
+    st.markdown("---")
+    st.markdown("### 📊 QUICK STATS")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        fair_ev = round((1/6) * bet_amount * 5 - (5/6) * bet_amount, 2)
+        st.metric("Fair EV", f"₱{fair_ev}")
+    
+    with col2:
+        if game_type != "Fair Game":
+            tweaked_ev = round(fair_ev * 0.95, 2)
+            st.metric("Tweaked EV", f"₱{tweaked_ev}")
+    
+    # Information
+    st.markdown("---")
+    with st.expander("ℹ️ ABOUT THIS SIMULATION"):
+        st.info("""
+        *Monte Carlo Simulation* uses random sampling to model probabilistic systems.
+        
+        *House Edge* represents the casino's long-term advantage.
+        
+        *Expected Value (EV)* is the average outcome per game.
+        
+        Results may vary due to random sampling.
+        """)
+
+# Main content
 if run_simulation:
-    # Progress bar
+    # Progress animation
+    with st.spinner('🎲 Shuffling probabilities...'):
+        time.sleep(0.5)
+    
+    # Progress bar with better styling
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    # Run simulation
+    # Create placeholder for simulation animation
+    simulation_placeholder = st.empty()
+    
+    # Run simulation with progress updates
     for i in range(100):
         time.sleep(0.01)
         progress_bar.progress(i + 1)
-        status_text.text(f"Running simulation... {i+1}%")
+        status_text.text(f"🎯 Running simulation... {i+1}% complete")
+        
+        # Update animation placeholder
+        if enable_animations and i % 20 == 0:
+            with simulation_placeholder.container():
+                # Create a simple animation of rolling dice
+                dice_faces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
+                current_dice = dice_faces[i // 20 % 6]
+                st.markdown(f"<h3 style='text-align: center; font-size: 4rem;'>{current_dice}</h3>", unsafe_allow_html=True)
     
-    status_text.text("Simulation complete!")
+    status_text.success("✅ Simulation complete!")
+    simulation_placeholder.empty()
     
     # Run the simulation
     if game_type == "Compare Both":
@@ -231,22 +454,44 @@ if run_simulation:
             initial_balance, player_color
         )
         
-        # Create two columns for comparison
+        # Comparison header
+        st.markdown("<h2 class='section-header'>📊 COMPARATIVE ANALYSIS</h2>", unsafe_allow_html=True)
+        
+        # Create two columns for comparison with badges
         col1, col2 = st.columns(2)
         
         for idx, (gtype, result) in enumerate(results.items()):
             with col1 if idx == 0 else col2:
-                st.markdown(f"### {gtype}")
+                # Header with badge
+                badge_class = "badge-fair" if gtype == "Fair Game" else "badge-tweaked"
+                st.markdown(f"<h3><span class='badge {badge_class}'>{gtype.upper()}</span></h3>", unsafe_allow_html=True)
                 
-                # Metrics
-                col_metric1, col_metric2 = st.columns(2)
-                with col_metric1:
-                    st.metric("Final Balance", f"₱{result['final_balance']:,.2f}")
-                    st.metric("Total Profit", f"₱{result['total_profit']:,.2f}", 
-                             delta=f"{result['total_profit']/initial_balance*100:.1f}%")
-                with col_metric2:
-                    st.metric("Win Rate", f"{result['win_rate']*100:.1f}%")
-                    st.metric("Expected Value", f"₱{result['expected_value']:.2f}")
+                # Metrics in cards
+                with st.container():
+                    col_metric1, col_metric2 = st.columns(2)
+                    with col_metric1:
+                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                        st.metric(
+                            "Final Balance", 
+                            f"₱{result['final_balance']:,.2f}",
+                            delta=f"₱{result['total_profit']:,.2f}" if result['total_profit'] >= 0 else f"₱{result['total_profit']:,.2f}",
+                            delta_color="normal"
+                        )
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                        st.metric("Win Rate", f"{result['win_rate']*100:.1f}%")
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    with col_metric2:
+                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                        st.metric("Total Games", f"{result['total_games']:,}")
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+                        ev_color = "🟢" if result['expected_value'] > 0 else "🔴"
+                        st.metric("Expected Value", f"₱{result['expected_value']:.2f}")
+                        st.markdown("</div>", unsafe_allow_html=True)
                 
                 # Plot balance history
                 fig = go.Figure()
@@ -254,59 +499,93 @@ if run_simulation:
                     y=result['history'],
                     mode='lines',
                     name='Balance',
-                    line=dict(color='green' if result['final_balance'] >= initial_balance else 'red')
+                    line=dict(
+                        color='#4CAF50' if result['final_balance'] >= initial_balance else '#FF4B4B',
+                        width=3
+                    ),
+                    fill='tozeroy',
+                    fillcolor='rgba(76, 175, 80, 0.1)' if result['final_balance'] >= initial_balance else 'rgba(255, 75, 75, 0.1)'
                 ))
+                fig.add_hline(
+                    y=initial_balance, 
+                    line_dash="dash", 
+                    line_color="#666",
+                    annotation_text="Initial Balance",
+                    annotation_position="bottom right"
+                )
                 fig.update_layout(
-                    title=f"Balance Over Time - {gtype}",
+                    title=f"Balance Progression - {gtype}",
                     xaxis_title="Game Number",
-                    yaxis_title="Balance (PHP)",
-                    height=300
+                    yaxis_title="Balance (₱)",
+                    height=350,
+                    template="plotly_white",
+                    hovermode="x unified"
                 )
                 st.plotly_chart(fig, use_container_width=True)
         
-        # Comparison metrics
-        st.markdown("### 📊 Comparative Analysis")
+        # Detailed comparison table
+        st.markdown("<h3 class='section-header'>📈 DETAILED COMPARISON</h3>", unsafe_allow_html=True)
         
         fair_result = results["Fair Game"]
         tweaked_result = results["Tweaked Game"]
         
         comparison_data = {
-            "Metric": ["Final Balance", "Total Profit", "Win Rate", "Expected Value"],
+            "Metric": ["Final Balance", "Total Profit", "Win Rate", "Expected Value", 
+                      "Total Wins", "Profit/Loss Ratio", "Max Balance", "Min Balance"],
             "Fair Game": [
                 fair_result['final_balance'],
                 fair_result['total_profit'],
                 fair_result['win_rate'] * 100,
-                fair_result['expected_value']
+                fair_result['expected_value'],
+                fair_result['wins'],
+                fair_result['total_profit'] / initial_balance,
+                max(fair_result['history']),
+                min(fair_result['history'])
             ],
             "Tweaked Game": [
                 tweaked_result['final_balance'],
                 tweaked_result['total_profit'],
                 tweaked_result['win_rate'] * 100,
-                tweaked_result['expected_value']
+                tweaked_result['expected_value'],
+                tweaked_result['wins'],
+                tweaked_result['total_profit'] / initial_balance,
+                max(tweaked_result['history']),
+                min(tweaked_result['history'])
             ],
             "Difference": [
                 tweaked_result['final_balance'] - fair_result['final_balance'],
                 tweaked_result['total_profit'] - fair_result['total_profit'],
                 (tweaked_result['win_rate'] - fair_result['win_rate']) * 100,
-                tweaked_result['expected_value'] - fair_result['expected_value']
+                tweaked_result['expected_value'] - fair_result['expected_value'],
+                tweaked_result['wins'] - fair_result['wins'],
+                (tweaked_result['total_profit'] / initial_balance) - (fair_result['total_profit'] / initial_balance),
+                max(tweaked_result['history']) - max(fair_result['history']),
+                min(tweaked_result['history']) - min(fair_result['history'])
             ]
         }
         
         df_comparison = pd.DataFrame(comparison_data)
-        st.dataframe(df_comparison.style.format({
-            "Fair Game": "{:,.2f}",
-            "Tweaked Game": "{:,.2f}",
-            "Difference": "{:+,.2f}"
-        }))
+        
+        # Style the comparison table
+        def color_diff(val):
+            color = 'green' if val > 0 else 'red' if val < 0 else 'gray'
+            return f'color: {color}; font-weight: bold;'
+        
+        st.dataframe(
+            df_comparison.style.format({
+                "Fair Game": "{:,.2f}",
+                "Tweaked Game": "{:,.2f}",
+                "Difference": "{:+,.2f}"
+            }).applymap(color_diff, subset=['Difference']),
+            use_container_width=True
+        )
         
         # Download option for comparison results
-        st.markdown("---")
-        st.markdown("### 📥 Download Results")
+        st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+        st.markdown("### 📥 DOWNLOAD RESULTS")
         
-        # Create a combined DataFrame for download
         all_data = []
         for gtype, result in results.items():
-            # Ensure we have the right number of entries
             n = len(result['history'])
             for i in range(n):
                 all_data.append({
@@ -321,11 +600,13 @@ if run_simulation:
             result_df = pd.DataFrame(all_data)
             csv = result_df.to_csv(index=False)
             st.download_button(
-                label="📥 Download All Simulation Data",
+                label="📊 Download All Simulation Data (CSV)",
                 data=csv,
-                file_name="color_game_comparison_simulation.csv",
-                mime="text/csv"
+                file_name="perya_color_game_comparison.csv",
+                mime="text/csv",
+                help="Download complete simulation data for further analysis"
             )
+        st.markdown("</div>", unsafe_allow_html=True)
         
     else:
         # Single game type results
@@ -334,213 +615,367 @@ if run_simulation:
             initial_balance, player_color
         )
         
-        # Display metrics
+        # Header with game type badge
+        badge_type = "badge-fair" if game_type == "Fair Game" else "badge-tweaked"
+        st.markdown(f"<h2 class='section-header'><span class='badge {badge_type}'>{game_type.upper()}</span> SIMULATION RESULTS</h2>", unsafe_allow_html=True)
+        
+        # Key metrics in a grid
+        st.markdown("### 📈 KEY PERFORMANCE INDICATORS")
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Final Balance", f"₱{result['final_balance']:,.2f}",
-                     delta=f"{result['total_profit']:,.2f}")
-        with col2:
-            st.metric("Win Rate", f"{result['win_rate']*100:.2f}%",
-                     delta=f"{result['wins']} wins")
-        with col3:
-            st.metric("Total Games", f"{result['total_games']:,}")
-        with col4:
-            ev_color = "green" if result['expected_value'] > 0 else "red"
-            st.metric("Expected Value", f"₱{result['expected_value']:.3f}")
+            st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+            delta_color = "normal" if result['total_profit'] >= 0 else "inverse"
+            st.metric(
+                "Final Balance", 
+                f"₱{result['final_balance']:,.2f}",
+                delta=f"₱{result['total_profit']:,.2f}",
+                delta_color=delta_color
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
         
-        # Create tabs for different visualizations
-        tab1, tab2, tab3, tab4 = st.tabs(["Balance History", "Win Distribution", 
-                                         "Probability Analysis", "Statistical Summary"])
+        with col2:
+            st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+            st.metric(
+                "Win Rate", 
+                f"{result['win_rate']*100:.2f}%",
+                delta=f"{result['wins']:,} wins"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+            st.metric("Total Games", f"{result['total_games']:,}")
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+            ev_icon = "📈" if result['expected_value'] > 0 else "📉"
+            st.metric(
+                "Expected Value", 
+                f"₱{result['expected_value']:.3f}",
+                delta=f"{ev_icon} Per Game"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Tabs for detailed analysis
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Balance History", 
+            "🎯 Win Analysis", 
+            "⚖️ Probability Analysis", 
+            "📈 Statistics"
+        ])
         
         with tab1:
-            # Plot balance over time
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                y=result['history'],
-                mode='lines',
-                name='Player Balance',
-                line=dict(color='blue')
-            ))
-            fig.add_hline(y=initial_balance, line_dash="dash", 
-                         line_color="red", annotation_text="Initial Balance")
-            fig.update_layout(
-                title="Player Balance Over Time",
-                xaxis_title="Game Number",
-                yaxis_title="Balance (PHP)",
-                height=400
+            # Main balance chart
+            fig = make_subplots(
+                rows=2, cols=1,
+                subplot_titles=('Balance Progression', 'Rolling Average (100 games)'),
+                vertical_spacing=0.15,
+                row_heights=[0.7, 0.3]
             )
-            st.plotly_chart(fig, use_container_width=True)
+            
+            # Balance line
+            fig.add_trace(
+                go.Scatter(
+                    y=result['history'],
+                    mode='lines',
+                    name='Balance',
+                    line=dict(color='#2196F3', width=3),
+                    fill='tozeroy',
+                    fillcolor='rgba(33, 150, 243, 0.1)'
+                ),
+                row=1, col=1
+            )
+            
+            # Initial balance line
+            fig.add_hline(
+                y=initial_balance,
+                line_dash="dash",
+                line_color="#FF9800",
+                annotation_text="Initial Balance",
+                annotation_position="bottom right",
+                row=1, col=1
+            )
             
             # Rolling average
             window_size = min(100, num_simulations // 10)
             if window_size > 1:
                 rolling_avg = pd.Series(result['history']).rolling(window=window_size).mean()
-                fig2 = go.Figure()
-                fig2.add_trace(go.Scatter(
-                    y=rolling_avg,
-                    mode='lines',
-                    name=f'{window_size}-Game Moving Average',
-                    line=dict(color='orange', width=2)
-                ))
-                fig2.update_layout(
-                    title=f"Moving Average Balance (Window: {window_size} games)",
-                    xaxis_title="Game Number",
-                    yaxis_title="Balance (PHP)",
-                    height=300
+                fig.add_trace(
+                    go.Scatter(
+                        y=rolling_avg,
+                        mode='lines',
+                        name=f'Rolling Avg ({window_size} games)',
+                        line=dict(color='#4CAF50', width=2)
+                    ),
+                    row=2, col=1
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+            
+            fig.update_layout(
+                height=600,
+                showlegend=True,
+                template="plotly_white",
+                hovermode="x unified"
+            )
+            
+            fig.update_xaxes(title_text="Game Number", row=2, col=1)
+            fig.update_yaxes(title_text="Balance (₱)", row=1, col=1)
+            fig.update_yaxes(title_text="Average Balance (₱)", row=2, col=1)
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Additional insights
+            if result['final_balance'] < initial_balance * 0.5:
+                st.warning("⚠️ *Warning:* Player lost more than 50% of initial balance. Consider smaller bet sizes.")
+            elif result['final_balance'] > initial_balance * 1.5:
+                st.success("🎉 *Great performance!* Player gained more than 50% profit.")
         
         with tab2:
-            # Win/loss distribution
             col1, col2 = st.columns(2)
+            
             with col1:
+                # Win/loss pie chart
                 win_loss_counts = pd.Series(result['win_history']).value_counts()
                 fig = go.Figure(data=[go.Pie(
                     labels=['Losses', 'Wins'],
                     values=[win_loss_counts.get(False, 0), win_loss_counts.get(True, 0)],
-                    hole=.3,
-                    marker_colors=['red', 'green']
+                    hole=.4,
+                    marker_colors=['#FF4B4B', '#4CAF50'],
+                    textinfo='percent+value',
+                    textposition='inside'
                 )])
-                fig.update_layout(title="Win/Loss Distribution")
+                fig.update_layout(
+                    title="Win/Loss Distribution",
+                    height=400,
+                    annotations=[dict(
+                        text=f"{result['win_rate']*100:.1f}%",
+                        x=0.5, y=0.5,
+                        font_size=20,
+                        showarrow=False
+                    )]
+                )
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
                 # Winning colors distribution
                 if 'winning_colors' in result:
                     color_counts = pd.Series(result['winning_colors']).value_counts()
+                    color_palette = {
+                        "Red": "#FF4B4B",
+                        "Green": "#4CAF50",
+                        "Blue": "#2196F3",
+                        "Yellow": "#FFD700",
+                        "White": "#666666",
+                        "Black": "#000000"
+                    }
+                    
                     fig = px.bar(
                         x=color_counts.index,
                         y=color_counts.values,
-                        title="Winning Colors Distribution",
-                        labels={'x': 'Color', 'y': 'Frequency'},
-                        color=color_counts.index
+                        title="Winning Colors Frequency",
+                        labels={'x': 'Color', 'y': 'Number of Wins'},
+                        color=color_counts.index,
+                        color_discrete_map=color_palette
                     )
+                    fig.update_layout(
+                        height=400,
+                        showlegend=False,
+                        xaxis_title="Color",
+                        yaxis_title="Frequency"
+                    )
+                    
+                    # Highlight player's color
+                    if player_color in color_counts.index:
+                        fig.update_traces(
+                            marker_line_width=3,
+                            marker_line_color='black',
+                            selector=dict(name=player_color)
+                        )
+                    
                     st.plotly_chart(fig, use_container_width=True)
         
         with tab3:
-            # Probability analysis
+            # Probability analysis with enhanced visualization
             if 'probabilities' in result:
                 colors = ["Red", "Green", "Blue", "Yellow", "White", "Black"]
-                prob_df = pd.DataFrame({
-                    'Color': colors,
-                    'Probability': result['probabilities'],
-                    'Fair Probability': [1/6] * 6
-                })
                 
-                fig = go.Figure()
-                fig.add_trace(go.Bar(
-                    x=prob_df['Color'],
-                    y=prob_df['Fair Probability'],
-                    name='Fair Probability',
-                    marker_color='lightblue'
-                ))
-                fig.add_trace(go.Bar(
-                    x=prob_df['Color'],
-                    y=prob_df['Probability'],
-                    name=f'{game_type} Probability',
-                    marker_color='coral'
-                ))
-                fig.update_layout(
-                    title="Probability Distribution Comparison",
-                    barmode='group',
-                    yaxis_title="Probability",
-                    height=400
+                fig = make_subplots(
+                    rows=1, cols=2,
+                    subplot_titles=('Probability Distribution', 'Fair vs Actual Comparison'),
+                    specs=[[{'type': 'pie'}, {'type': 'bar'}]]
                 )
+                
+                # Pie chart
+                fig.add_trace(
+                    go.Pie(
+                        labels=colors,
+                        values=result['probabilities'],
+                        hole=.3,
+                        marker_colors=['#FF4B4B', '#4CAF50', '#2196F3', '#FFD700', '#666666', '#000000'],
+                        textinfo='percent+label',
+                        textposition='inside'
+                    ),
+                    row=1, col=1
+                )
+                
+                # Bar chart comparison
+                fig.add_trace(
+                    go.Bar(
+                        x=colors,
+                        y=[1/6] * 6,
+                        name='Fair Probability',
+                        marker_color='lightblue',
+                        opacity=0.7
+                    ),
+                    row=1, col=2
+                )
+                
+                fig.add_trace(
+                    go.Bar(
+                        x=colors,
+                        y=result['probabilities'],
+                        name=f'{game_type} Probability',
+                        marker_color='coral',
+                        opacity=0.7
+                    ),
+                    row=1, col=2
+                )
+                
+                fig.update_layout(
+                    height=500,
+                    barmode='group',
+                    showlegend=True,
+                    template="plotly_white"
+                )
+                
+                fig.update_xaxes(title_text="Color", row=1, col=2)
+                fig.update_yaxes(title_text="Probability", row=1, col=2)
+                
                 st.plotly_chart(fig, use_container_width=True)
                 
-                st.markdown(f"**Payout Multiplier:** {result['payout_multiplier']}:1")
-                if game_type == "Tweaked Game":
-                    fair_ev = (1/6) * bet_amount * 5 - (5/6) * bet_amount
-                    tweaked_ev = result['expected_value']
-                    house_edge = (fair_ev - tweaked_ev) / bet_amount * 100
-                    st.markdown(f"**Calculated House Edge:** {house_edge:.2f}%")
+                # Game information
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+                    st.markdown("#### 🎰 Game Information")
+                    st.markdown(f"*Payout Multiplier:* {result['payout_multiplier']}:1")
+                    st.markdown(f"*Player's Color:* <span class='color-chip' style='background-color:{color_palette[player_color]};'></span>{player_color}", unsafe_allow_html=True)
+                    st.markdown(f"*Bet Amount:* ₱{bet_amount:,.2f}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                with col2:
+                    if game_type == "Tweaked Game":
+                        st.markdown("<div class='warning-card'>", unsafe_allow_html=True)
+                        st.markdown("#### ⚠️ House Edge Analysis")
+                        fair_ev = (1/6) * bet_amount * 5 - (5/6) * bet_amount
+                        tweaked_ev = result['expected_value']
+                        house_edge = (fair_ev - tweaked_ev) / bet_amount * 100
+                        st.markdown(f"*Calculated House Edge:* {house_edge:.2f}%")
+                        st.markdown(f"*Player EV:* ₱{tweaked_ev:.3f} per game")
+                        st.markdown(f"*Fair EV:* ₱{fair_ev:.3f} per game")
+                        st.markdown("</div>", unsafe_allow_html=True)
         
         with tab4:
-            # Statistical summary
-            st.subheader("Statistical Analysis")
+            # Statistical summary with enhanced metrics
+            st.markdown("### 📊 Statistical Summary")
             
             history_series = pd.Series(result['history'])
             
             col1, col2 = st.columns(2)
             
             with col1:
+                st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
                 st.markdown("##### Balance Statistics")
-                stats_df = pd.DataFrame({
-                    'Statistic': ['Mean', 'Median', 'Std Dev', 'Min', 'Max', 'Skewness', 'Kurtosis'],
+                stats_data = {
+                    'Statistic': ['Mean Balance', 'Median Balance', 'Std Deviation', 
+                                'Minimum Balance', 'Maximum Balance', 'Range', 
+                                'Interquartile Range (IQR)', 'Coefficient of Variation'],
                     'Value': [
                         history_series.mean(),
                         history_series.median(),
                         history_series.std(),
                         history_series.min(),
                         history_series.max(),
-                        history_series.skew(),
-                        history_series.kurtosis()
+                        history_series.max() - history_series.min(),
+                        history_series.quantile(0.75) - history_series.quantile(0.25),
+                        (history_series.std() / history_series.mean()) * 100 if history_series.mean() != 0 else 0
                     ]
-                })
-                st.dataframe(stats_df.style.format({'Value': '{:,.2f}'}))
+                }
+                stats_df = pd.DataFrame(stats_data)
+                st.dataframe(
+                    stats_df.style.format({'Value': '{:,.2f}'}),
+                    use_container_width=True
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
             
             with col2:
+                st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
                 st.markdown("##### Performance Metrics")
-                # Create a DataFrame with mixed data types
+                
+                # Risk metrics
+                max_drawdown = (history_series.min() - initial_balance) / initial_balance * 100
+                volatility = history_series.std()
+                
                 metrics_data = {
-                    'Metric': ['Total Return', 'Return %', 'Sharpe Ratio*', 
-                              'Max Drawdown', 'Volatility', 'Risk of Ruin*'],
+                    'Metric': ['Total Return (₱)', 'Return (%)', 'Sharpe Ratio*', 
+                              'Max Drawdown (%)', 'Volatility (₱)', 'Risk of Ruin*',
+                              'Profit Factor', 'Recovery Factor*'],
                     'Value': [
                         result['total_profit'],
                         result['total_profit'] / initial_balance * 100,
-                        result['total_profit'] / history_series.std() if history_series.std() > 0 else 0,
-                        (history_series.min() - initial_balance) / initial_balance * 100,
-                        history_series.std(),
-                        "High" if result['final_balance'] < bet_amount else "Low"
+                        result['total_profit'] / volatility if volatility > 0 else 0,
+                        max_drawdown,
+                        volatility,
+                        "High" if result['final_balance'] < bet_amount else "Low" if result['final_balance'] < initial_balance * 0.5 else "Medium",
+                        abs(result['wins'] * bet_amount * result['payout_multiplier']) / abs((result['total_games'] - result['wins']) * bet_amount) if result['total_games'] > result['wins'] else float('inf'),
+                        result['total_profit'] / abs(max_drawdown/100 * initial_balance) if max_drawdown < 0 else float('inf')
                     ]
                 }
                 metrics_df = pd.DataFrame(metrics_data)
                 
-                # FIX: Use a function to format only numeric values
-                def format_metrics(val):
+                # Format values
+                def format_metric(val):
                     if isinstance(val, (int, float, np.integer, np.floating)):
-                        return f"{val:,.2f}"
-                    return val
+                        if abs(val) > 1000:
+                            return f"{val:,.0f}"
+                        elif abs(val) > 1:
+                            return f"{val:,.2f}"
+                        else:
+                            return f"{val:.4f}"
+                    return str(val)
                 
-                # Apply formatting to each value in the 'Value' column
-                formatted_values = []
-                for val in metrics_df['Value']:
-                    formatted_values.append(format_metrics(val))
-                
-                metrics_df['Value'] = formatted_values
-                st.dataframe(metrics_df)
-                st.caption("*Approximate calculations")
+                metrics_df['Value'] = metrics_df['Value'].apply(format_metric)
+                st.dataframe(metrics_df, use_container_width=True)
+                st.caption("*Approximate calculations for educational purposes")
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Distribution plot
+            st.markdown("##### Balance Distribution")
+            fig = px.histogram(
+                history_series,
+                nbins=50,
+                title="Balance Distribution Histogram",
+                labels={'value': 'Balance (₱)', 'count': 'Frequency'}
+            )
+            fig.add_vline(
+                x=initial_balance,
+                line_dash="dash",
+                line_color="red",
+                annotation_text="Initial Balance"
+            )
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
     
-    # Add simulation insights
-    st.markdown("---")
-    st.markdown("### 📈 Simulation Insights")
-    
-    insights = """
-    #### Key Observations:
-    1. **Law of Large Numbers**: As the number of games increases, the results converge to the expected value
-    2. **House Edge Impact**: Even small probability tweaks significantly affect long-term outcomes
-    3. **Volatility**: Short-term results can vary widely due to randomness
-    4. **Bankroll Management**: Initial balance and bet size greatly affect survival probability
-    
-    #### Mathematical Foundation:
-    - **Expected Value (EV)**: Average outcome per game
-    - **House Edge**: Percentage advantage the casino has over players
-    - **Monte Carlo Simulation**: Uses random sampling to model probabilistic systems
-    """
-    
-    st.markdown(insights)
-    
-    # Download results - FIXED COMPLETELY
+    # Download results for single game
     if game_type != "Compare Both":
-        # Get the actual number of games simulated (might be less than num_simulations if player went bankrupt early)
         actual_games = len(result['history'])
         
-        # Create lists with exactly the same length
+        # Create result DataFrame
         game_numbers = list(range(1, actual_games + 1))
         balances = result['history']
         
-        # Get win_history and winning_colors with proper length
         win_history = result.get('win_history', [None] * actual_games)
         if len(win_history) < actual_games:
             win_history.extend([None] * (actual_games - len(win_history)))
@@ -553,89 +988,224 @@ if run_simulation:
         elif len(winning_colors) > actual_games:
             winning_colors = winning_colors[:actual_games]
         
-        # Now create the DataFrame with all arrays having the same length
         result_df = pd.DataFrame({
             'Game_Number': game_numbers[:actual_games],
             'Balance': balances[:actual_games],
             'Win': win_history[:actual_games],
-            'Winning_Color': winning_colors[:actual_games]
+            'Winning_Color': winning_colors[:actual_games],
+            'Cumulative_Profit': [bal - initial_balance for bal in balances[:actual_games]]
         })
         
         csv = result_df.to_csv(index=False)
+        
+        st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+        st.markdown("### 📥 DOWNLOAD SIMULATION DATA")
         st.download_button(
-            label="📥 Download Simulation Data",
+            label=f"📊 Download {game_type} Data (CSV)",
             data=csv,
-            file_name=f"{game_type.replace(' ', '_').lower()}_simulation.csv",
-            mime="text/csv"
+            file_name=f"perya_{game_type.replace(' ', '_').lower()}_simulation.csv",
+            mime="text/csv",
+            help="Download complete simulation data for further analysis"
         )
-
-else:
-    # Default view when simulation hasn't been run
-    st.markdown("""
-    ## 🎯 Project Overview
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    This application simulates a Filipino "Perya" Color Game to demonstrate:
+    # Simulation insights with enhanced presentation
+    st.markdown("<h2 class='section-header'>🧠 SIMULATION INSIGHTS & KEY TAKEAWAYS</h2>", unsafe_allow_html=True)
     
-    ### 🎮 The Game Rules:
-    1. Player bets on one of six colors
-    2. A winning color is randomly selected
-    3. If player's color wins, they get a payout
-    4. Otherwise, they lose their bet
-    
-    ### 🔬 Simulation Objectives:
-    1. **Model a Fair Game**: Equal probabilities (1/6 each) with fair payouts
-    2. **Model a Tweaked Game**: Introduces house edge through probability weighting
-    3. **Compare Results**: Analyze how small changes affect long-term outcomes
-    
-    ### 📊 Analysis Includes:
-    - Monte Carlo simulation (10,000+ games)
-    - Balance progression over time
-    - Win/loss distribution
-    - Expected value calculation
-    - House edge quantification
-    - Statistical analysis
-    
-    ### 🎲 How to Use:
-    1. Adjust simulation parameters in the sidebar
-    2. Select game type (Fair, Tweaked, or Compare Both)
-    3. Choose your betting color
-    4. Click "Run Simulation" to see results
-    
-    ### 🎯 Learning Outcomes:
-    - Understand probability modeling
-    - Analyze house edge impact
-    - Visualize stochastic processes
-    - Apply Monte Carlo methods
-    """)
-    
-    # Add some sample visualizations
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### Example: Fair Game Probabilities")
-        fair_probs = [1/6] * 6
-        fig = go.Figure(data=[go.Pie(
-            labels=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
-            values=fair_probs,
-            hole=.3
-        )])
-        fig.update_layout(title="Equal Probabilities (16.67% each)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("<div class='info-card'>", unsafe_allow_html=True)
+        st.markdown("#### 📈 Mathematical Principles")
+        st.markdown("""
+        *Law of Large Numbers*: 
+        As simulation size increases, results converge to expected values.
+        
+        *House Edge Impact*: 
+        Even 1-2% edge significantly affects long-term profitability.
+        
+        *Expected Value (EV)*:
+        Average outcome per game determines long-term results.
+        
+        *Monte Carlo Method*:
+        Random sampling approximates complex probabilistic systems.
+        """)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.markdown("#### Example: Tweaked Game Probabilities")
-        tweaked_probs = [0.14, 0.14, 0.14, 0.19, 0.19, 0.20]
-        fig = go.Figure(data=[go.Pie(
-            labels=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
-            values=tweaked_probs,
-            hole=.3
-        )])
-        fig.update_layout(title="Weighted Probabilities (House Edge: ~5%)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("<div class='warning-card'>", unsafe_allow_html=True)
+        st.markdown("#### ⚠️ Practical Implications")
+        st.markdown("""
+        *Bankroll Management*:
+        Bet size relative to balance is crucial for survival.
+        
+        *Short-term Variance*:
+        Results can deviate significantly from EV in small samples.
+        
+        *Casino Profitability*:
+        House edge ensures long-term profitability despite volatility.
+        
+        *Player Psychology*:
+        Short-term wins can mask long-term disadvantage.
+        """)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# Footer
-st.markdown("---")
+else:
+    # Default view - Landing page with enhanced design
+    st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #2E4053; margin-bottom: 2rem;'>🎯 PROJECT OVERVIEW & INTRODUCTION</h2>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Introduction cards
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.markdown("### 🎮 The Game")
+        st.markdown("""
+        Traditional Filipino "Perya" color game
+        - 6 colors to bet on
+        - 5:1 payout for correct guess
+        - Random selection mechanism
+        - Simple yet profound probability model
+        """)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.markdown("### 🔬 The Science")
+        st.markdown("""
+        Monte Carlo Simulation
+        - 10,000+ game simulations
+        - Statistical analysis
+        - Probability modeling
+        - Stochastic process visualization
+        """)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.markdown("### 🎯 The Purpose")
+        st.markdown("""
+        Educational Demonstration
+        - Understand house edge
+        - Analyze risk vs reward
+        - Visualize probability
+        - Learn statistical modeling
+        """)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # How to use section
+    st.markdown("<h3 class='section-header'>🚀 GETTING STARTED</h3>", unsafe_allow_html=True)
+    
+    steps_col1, steps_col2 = st.columns(2)
+    
+    with steps_col1:
+        st.markdown("""
+        ### 📋 Quick Start Guide
+        
+        1. *Adjust Parameters* in sidebar
+        2. *Select Game Type* (Fair/Tweaked/Compare)
+        3. *Choose Your Color* to bet on
+        4. *Click RUN SIMULATION* button
+        5. *Analyze Results* in real-time
+        
+        ### ⚙️ Recommended Settings
+        
+        - *Beginner*: 1,000 games, Fair Game
+        - *Intermediate*: 10,000 games, Compare Both
+        - *Advanced*: 50,000 games, Tweaked Game
+        
+        ### 🎯 Tips for Learning
+        
+        Start with small simulations to understand patterns, then scale up for more accurate results.
+        """)
+    
+    with steps_col2:
+        # Interactive example visualization
+        st.markdown("#### 📊 Example Visualizations")
+        
+        tab1, tab2 = st.tabs(["Fair Game", "Tweaked Game"])
+        
+        with tab1:
+            fair_probs = [1/6] * 6
+            fig = go.Figure(data=[go.Pie(
+                labels=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
+                values=fair_probs,
+                hole=.4,
+                marker_colors=['#FF4B4B', '#4CAF50', '#2196F3', '#FFD700', '#666666', '#000000']
+            )])
+            fig.update_layout(
+                title="Fair Game: Equal Probabilities",
+                height=300,
+                annotations=[dict(
+                    text="16.67% each",
+                    x=0.5, y=0.5,
+                    font_size=14,
+                    showarrow=False
+                )]
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab2:
+            tweaked_probs = [0.14, 0.14, 0.14, 0.19, 0.19, 0.20]
+            fig = go.Figure(data=[go.Pie(
+                labels=['Red', 'Green', 'Blue', 'Yellow', 'White', 'Black'],
+                values=tweaked_probs,
+                hole=.4,
+                marker_colors=['#FF4B4B', '#4CAF50', '#2196F3', '#FFD700', '#666666', '#000000']
+            )])
+            fig.update_layout(
+                title="Tweaked Game: Weighted Probabilities",
+                height=300,
+                annotations=[dict(
+                    text="~5% House Edge",
+                    x=0.5, y=0.5,
+                    font_size=14,
+                    showarrow=False
+                )]
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # Learning outcomes
+    st.markdown("<h3 class='section-header'>🎓 LEARNING OUTCOMES</h3>", unsafe_allow_html=True)
+    
+    outcomes = """
+    #### 📊 What You'll Learn:
+    
+    1. *Probability Theory*: Understanding of independent events and expected value
+    2. *Statistical Analysis*: Interpretation of simulation results and confidence intervals
+    3. *Casino Mathematics*: How house edge affects long-term profitability
+    4. *Monte Carlo Methods*: Application of computational statistics
+    5. *Risk Management*: Bankroll management and bet sizing strategies
+    6. *Data Visualization*: Effective presentation of statistical data
+    
+    #### 🔍 Key Concepts Covered:
+    
+    - *Expected Value (EV)*: Mathematical expectation per game
+    - *House Edge*: Casino's mathematical advantage
+    - *Law of Large Numbers*: Convergence to theoretical probabilities
+    - *Volatility*: Short-term vs long-term results
+    - *Risk of Ruin*: Probability of losing entire bankroll
+    
+    #### 💡 Real-world Applications:
+    
+    - Casino game design and analysis
+    - Financial risk modeling
+    - Insurance probability calculations
+    - Game theory applications
+    - Statistical quality control
+    """
+    
+    st.markdown(outcomes)
+
+# Enhanced Footer
 st.markdown("""
-**CSEC 413 - Modeling and Simulation** | *Final Project: Stochastic Game Simulation*  
-*This simulation demonstrates how casinos maintain profitability through mathematical edge*
-""")
+<div class='footer'>
+    <h3>🎓 CSEC 413 - Modeling and Simulation</h3>
+    <p><strong>Final Project: Stochastic Game Simulation & Analysis</strong></p>
+    <p>This educational tool demonstrates mathematical concepts behind casino games.</p>
+    <p style='color: #FF4B4B; font-weight: bold;'>⚠️ Gambling involves significant risk. This simulation is for educational purposes only.</p>
+    <p>© 2024 Filipino Perya Game Simulation | Made with Streamlit & Plotly</p>
+</div>
+""", unsafe_allow_html=True)
