@@ -25,17 +25,19 @@ st.markdown("""
     /* Main styling */
     .main-title {
         font-size: 3.5rem;
-        background: linear-gradient(90deg, #FF4B4B 0%, #FF9F43 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #FFFFFF; /* Changed to solid white */
         text-align: center;
         margin-bottom: 1rem;
         font-weight: 800;
+        text-shadow: 
+            0 2px 4px rgba(0, 0, 0, 0.5),
+            0 0 20px rgba(255, 255, 255, 0.3); /* White glow effect */
+        position: relative;
     }
     
     .subtitle {
         font-size: 1.2rem;
-        color: #666;
+        color: #CCCCCC; /* Lighter color for better visibility on dark background */
         text-align: center;
         margin-bottom: 2.5rem;
         font-weight: 300;
@@ -43,44 +45,48 @@ st.markdown("""
     
     .section-header {
         font-size: 1.8rem;
-        color: #2E4053;
+        color: #FFFFFF; /* Changed to white for better contrast */
         margin-top: 2rem;
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
         border-bottom: 3px solid #FF4B4B;
         font-weight: 600;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     }
     
     /* Cards and containers */
     .metric-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); /* Darker card background */
         padding: 1.5rem;
         border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         margin: 1rem 0;
         border-left: 5px solid #FF4B4B;
         transition: transform 0.3s ease;
+        color: #FFFFFF;
     }
     
     .metric-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 6px 12px rgba(255, 75, 75, 0.2);
     }
     
     .info-card {
-        background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+        background: linear-gradient(135deg, #0d3b66 0%, #1a659e 100%);
         padding: 1.5rem;
         border-radius: 15px;
         margin: 1rem 0;
         border-left: 5px solid #2196F3;
+        color: #FFFFFF;
     }
     
     .warning-card {
-        background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+        background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
         padding: 1.5rem;
         border-radius: 15px;
         margin: 1rem 0;
         border-left: 5px solid #FF9800;
+        color: #FFFFFF;
     }
     
     /* Buttons */
@@ -114,11 +120,12 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
-        background-color: #F0F2F6;
+        background-color: #2a4365;
         border-radius: 10px 10px 0 0;
         gap: 1rem;
         padding: 1rem;
         font-weight: 600;
+        color: #FFFFFF;
     }
     
     .stTabs [aria-selected="true"] {
@@ -135,6 +142,8 @@ st.markdown("""
     .dataframe {
         border-radius: 10px;
         overflow: hidden;
+        background-color: #1a1a2e !important;
+        color: #FFFFFF !important;
     }
     
     /* Badges */
@@ -165,7 +174,7 @@ st.markdown("""
         border-radius: 50%;
         margin-right: 8px;
         vertical-align: middle;
-        border: 2px solid rgba(0,0,0,0.1);
+        border: 2px solid rgba(255,255,255,0.3);
     }
     
     /* Color display fix */
@@ -179,10 +188,35 @@ st.markdown("""
     .footer {
         text-align: center;
         padding: 2rem;
-        color: #666;
+        color: #AAAAAA;
         font-size: 0.9rem;
-        border-top: 1px solid #eee;
+        border-top: 1px solid #444;
         margin-top: 3rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+    }
+    
+    /* Main content background */
+    .main .block-container {
+        background-color: #0f172a;
+    }
+    
+    /* Streamlit metric cards */
+    [data-testid="metric-container"] {
+        background-color: #1a1a2e;
+        border-radius: 10px;
+        padding: 1rem;
+        border-left: 4px solid #FF4B4B;
+    }
+    
+    /* Make all text in main content white for better visibility */
+    .main {
+        color: #FFFFFF;
+    }
+    
+    /* Make section headers more visible */
+    h2, h3, h4 {
+        color: #FFFFFF !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -454,7 +488,7 @@ def perform_statistical_tests(fair_results, tweaked_results):
     }
 
 # Header with enhanced design
-st.markdown("<h1 class='main-title'>🎲 FILIPINO PERYA COLOR GAME SIMULATOR</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>⬛⬜🟥 FILIPINO PERYA COLOR GAME🟨🟦🟩SIMULATOR </h1>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'> Modeling & Simulation with Multiple House Edge Techniques | CSEC 413 Final Project</p>", unsafe_allow_html=True)
 
 # Sidebar with improved design
@@ -1613,7 +1647,7 @@ if run_simulation:
 
 else:
     # Default view - Landing page with enhanced design
-    st.markdown("<h2 style='color: #2E4053; margin-bottom: 2rem; text-align: center;'>🎯 PROJECT OVERVIEW</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #FFFFFF; margin-bottom: 2rem; text-align: center;'>🎯 PROJECT OVERVIEW</h2>", unsafe_allow_html=True)
     
     # Introduction cards
     col1, col2, col3 = st.columns(3)
@@ -1916,7 +1950,7 @@ else:
 # Enhanced Footer
 st.markdown("""
 <div class='footer'>
-    <h3>🎓 CSEC 413 -  Modeling and Simulation</h3>
+    <h3 style='color: #FFFFFF;'>🎓 CSEC 413 - Modeling and Simulation</h3>
     <p><strong>Final Project: Stochastic Game Simulation with Multiple House Edge Methods</strong></p>
     <p>This educational tool demonstrates advanced mathematical concepts behind casino games including statistical testing and risk management.</p>
     <p style='color: #FF4B4B; font-weight: bold;'>⚠️ Gambling involves significant risk of financial loss. This simulation is for educational purposes only.</p>
