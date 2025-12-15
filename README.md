@@ -1,4 +1,4 @@
-# 🎲 Stochastic Game Simulation: Filipino Perya Color Game
+# ⬛⬜🟥 Stochastic Game Simulation: Filipino Perya Color Game 🟨🟦🟩
 
 A comprehensive **Streamlit application** for modeling and simulating a traditional Filipino carnival game. This project demonstrates **probabilistic systems**, **Monte Carlo simulations**, and **house edge analysis** through interactive experimentation and visualization.
 
@@ -76,14 +76,13 @@ cd stochastic-game-simulation
     pip install -r requirements.txt
 
 ### Dependencies
-    streamlit==1.31.0
-    numpy==1.24.3
-    pandas==2.0.3
-    matplotlib==3.7.2
-    seaborn==0.12.2
-    plotly==5.17.0
-    scipy==1.11.3
-
+     streamlit==1.31.0
+     numpy>=1.26.0
+     pandas>=2.2.0
+     matplotlib>=3.9.0
+     seaborn>=0.13.2
+     plotly>=5.17.0
+     scipy>=1.11.4
 ---
 
 ## 🎮 Usage
@@ -92,17 +91,18 @@ cd stochastic-game-simulation
     streamlit run app.py
 
 Open your browser at:
-http://localhost:8501
+https://jarosales-arch-group1-stochastic-g-perya-game-simulation-cwd6q1.streamlit.app/
 
 ---
 
 ## ⚙️ App Workflow
 
-### 1. Configure Simulation
+### 1.📂 Sidebar Control/Configure Simulation
 - Set simulation size
 - Set bet amount
 - Set starting balance
-- Choose game type (Fair / Tweaked / Compare Both)
+- Game type selection (Fair / Tweaked / Compare Both)
+- House edge & tweak settings
 - Select betting color
 
 ### 2. Run Simulation
@@ -114,6 +114,7 @@ http://localhost:8501
 - Win/loss distribution
 - Probability analysis
 - Statistical summary
+- Payout Distribution
 
 ### 4. Comparative Mode
 - Fair vs Tweaked difference
@@ -124,21 +125,6 @@ http://localhost:8501
 
 ## 📊 App Workflow Summary
     Configuration → Simulation → Visualization → Analysis → Comparison → Insights
-
----
-
-## 📂 Sidebar Controls
-- Simulation configuration
-- Game type selection
-- House edge & tweak settings
-
----
-
-## 📈 Dashboard Tabs
-- Balance History
-- Win Distribution
-- Probability Analysis
-- Statistical Summary
 
 ---
 
