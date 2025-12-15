@@ -88,8 +88,10 @@ cd stochastic-game-simulation
 ## 🎮 Usage
 
 ### Run the Streamlit App
-    streamlit run app.py
+    streamlit run perya_game_simulation.py
 
+
+### For the Deployed Appv
 Open your browser at:
 https://jarosales-arch-group1-stochastic-g-perya-game-simulation-cwd6q1.streamlit.app/
 
